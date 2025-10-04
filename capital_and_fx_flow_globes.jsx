@@ -25,8 +25,7 @@ const FX_URL = 'https://example.com/fx-flows-sample.json' // JSON
 
 // --- Utility CSV parser (very small, tolerant) ---
 function parseCSV(text){
-  const lines = text.trim().split(/?
-/)
+  const lines = text.trim().split(/?/)
   const headers = lines.shift().split(',').map(h=>h.trim())
   return lines.map(l=>{
     const cols = l.split(',')

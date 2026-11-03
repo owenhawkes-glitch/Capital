@@ -196,6 +196,9 @@ final class AppState: ObservableObject {
 
     func refreshAll() async {
         guard !demoMode else { return }
+        // Pick up a login created since launch, and hooks installed by hand.
+        mergeDiscoveredAccounts()
+        refreshHooksInstalled()
         for account in enabledAccounts {
             await refresh(account)
         }

@@ -59,12 +59,12 @@ enum CredentialStore {
         for service in keychainServiceCandidates(for: account) {
             searched.append("keychain:\(service)")
             switch readKeychain(service: service) {
-            case .success(let data?):
+            case .found(let data):
                 if let creds = decode(data) { return .success(creds) }
                 return .failure(.malformed)
-            case .success(nil):
+            case .missing:
                 continue
-            case .failure(let status):
+            case .denied(let status):
                 return .failure(.keychainDenied(status))
             }
         }
@@ -115,7 +115,13 @@ enum CredentialStore {
         return file.claudeAiOauth
     }
 
-    private static func readKeychain(service: String) -> Result<Data?, OSStatus> {
+    private enum KeychainRead {
+        case found(Data)
+        case missing
+        case denied(OSStatus)
+    }
+
+    private static func readKeychain(service: String) -> KeychainRead {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -124,8 +130,8 @@ enum CredentialStore {
         ]
         var item: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &item)
-        if status == errSecSuccess, let data = item as? Data { return .success(data) }
-        if status == errSecItemNotFound { return .success(nil) }
-        return .failure(status)
+        if status == errSecSuccess, let data = item as? Data { return .found(data) }
+        if status == errSecItemNotFound { return .missing }
+        return .denied(status)
     }
 }

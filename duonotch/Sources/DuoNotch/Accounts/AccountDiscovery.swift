@@ -50,6 +50,6 @@ enum AccountDiscovery {
         let name = URL(fileURLWithPath: configDir).lastPathComponent
         if name == ".claude" { return "Default" }
         let slug = name.dropFirst(".claude-".count)
-        return slug.isEmpty ? name : slug.prefix(1).uppercased() + slug.dropFirst()
+        return slug.isEmpty ? name : slug.prefix(1).uppercased() + String(slug.dropFirst())
     }
 }

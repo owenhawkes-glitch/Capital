@@ -29,6 +29,16 @@ final class AppState: ObservableObject {
     @Published private(set) var hooksInstalled: [String: Bool] = [:]
     @Published private(set) var serverStatus = "not started"
 
+    // MARK: Projects
+
+    @Published var projects: [Project] {
+        didSet { persistProjects() }
+    }
+    @Published var terminalApp: ProjectLauncher.TerminalApp {
+        didSet { defaults.set(terminalApp.rawValue, forKey: Keys.terminalApp) }
+    }
+    @Published var launchMessage: String?
+
     // MARK: Notch presentation
 
     @Published var hovering = false
@@ -65,6 +75,8 @@ final class AppState: ObservableObject {
         static let pollInterval = "pollIntervalSeconds"
         static let peekOnFinish = "peekOnFinish"
         static let menuBarText = "showMenuBarText"
+        static let projects = "projects.v1"
+        static let terminalApp = "terminalApp"
     }
 
     private let defaults = UserDefaults.standard
@@ -86,6 +98,8 @@ final class AppState: ObservableObject {
         demoMode = stored.bool(forKey: Keys.demoMode)
             || ProcessInfo.processInfo.environment["DUONOTCH_DEMO"] == "1"
         accounts = Self.loadPersistedAccounts()
+        projects = Self.loadPersistedProjects()
+        terminalApp = ProjectLauncher.TerminalApp(rawValue: stored.string(forKey: Keys.terminalApp) ?? "") ?? .terminal
     }
 
     // MARK: - Lifecycle
@@ -123,6 +137,7 @@ final class AppState: ObservableObject {
         }
 
         accounts = Self.loadPersistedAccounts()
+        projects = Self.loadPersistedProjects()
         mergeDiscoveredAccounts()
         startServer()
         refreshHooksInstalled()
@@ -307,6 +322,9 @@ final class AppState: ObservableObject {
         session.lastEvent = Date()
         session.claudePid = envelope.claudePid
         if let cwd = payload.cwd, !cwd.isEmpty { session.cwd = cwd }
+        if let label = envelope.label?.trimmingCharacters(in: .whitespaces), !label.isEmpty {
+            session.label = label
+        }
 
         var replied = false
         switch payload.hook_event_name {
@@ -445,6 +463,79 @@ final class AppState: ObservableObject {
         return errno == EPERM
     }
 
+    // MARK: - Projects
+
+    func addProject(_ project: Project) {
+        guard !projects.contains(where: { $0.path == project.path }) else { return }
+        projects.append(project)
+    }
+
+    func removeProject(_ project: Project) {
+        projects.removeAll { $0.id == project.id }
+    }
+
+    func account(for project: Project) -> Account? {
+        if let id = project.accountID, let match = accounts.first(where: { $0.id == id }) { return match }
+        return accounts.first { $0.isDefault } ?? accounts.first
+    }
+
+    func launch(_ project: Project) {
+        do {
+            try ProjectLauncher.launch(project, account: account(for: project), terminal: terminalApp)
+            launchMessage = "Opened \(project.name) in \(terminalApp.name)"
+        } catch {
+            launchMessage = error.localizedDescription
+        }
+    }
+
+    /// The project whose folder contains this working directory, preferring
+    /// the most specific match.
+    func project(matching cwd: String) -> Project? {
+        projects.filter { $0.contains(cwd: cwd) }
+            .max { $0.path.count < $1.path.count }
+    }
+
+    /// Label → matching project → first prompt → folder name.
+    func displayName(for session: ClaudeSession) -> String {
+        if let label = session.label, !label.isEmpty { return label }
+        if let project = project(matching: session.cwd) { return project.name }
+        if let prompt = session.lastPrompt?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "\n", with: " "), !prompt.isEmpty {
+            return prompt.count > 34 ? String(prompt.prefix(33)) + "…" : prompt
+        }
+        return session.projectName
+    }
+
+    func raiseTerminal(for session: ClaudeSession) {
+        TerminalRaiser.raise(claudePid: session.claudePid, terminal: terminalApp)
+    }
+
+    private static func loadPersistedProjects() -> [Project] {
+        guard let data = UserDefaults.standard.data(forKey: Keys.projects),
+              let decoded = try? JSONDecoder().decode([Project].self, from: data) else { return [] }
+        return decoded
+    }
+
+    private func persistProjects() {
+        guard !demoMode else { return }
+        if let data = try? JSONEncoder().encode(projects) {
+            defaults.set(data, forKey: Keys.projects)
+        }
+    }
+
+    // MARK: - Notch layout
+
+    /// What the expanded panel needs room for right now.
+    var layout: NotchLayoutInfo {
+        let rows = enabledAccounts.map { sessions(for: $0.id).count }.max() ?? 0
+        return NotchLayoutInfo(
+            pendingCount: pendingPermissions.count,
+            sessionRows: min(rows, NotchMetrics.maxSessionRows),
+            showsProjects: !projects.isEmpty
+        )
+    }
+
     // MARK: - Menu bar
 
     var menuBarText: String {
@@ -466,8 +557,9 @@ final class AppState: ObservableObject {
 
     // MARK: - Demo support
 
-    func setDemo(accounts: [Account], readings: [String: UsageReading], sessions: [ClaudeSession], pending: [PermissionRequest]) {
+    func setDemo(accounts: [Account], readings: [String: UsageReading], sessions: [ClaudeSession], pending: [PermissionRequest], projects: [Project] = []) {
         self.accounts = accounts
+        self.projects = projects
         self.readings = readings
         self.sessions = sessions
         self.pendingPermissions = pending

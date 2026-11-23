@@ -163,6 +163,38 @@ While a request is pending the terminal is waiting on the hook, so if you're
 already in that terminal click **Terminal** (or just wait – after 300 s the
 prompt appears there anyway).
 
+## Projects: open Claude in the right place
+
+Settings → Projects is the "I always forget the path" fix. Add folders with
+**Add folder…** or let **Find my git repos** scan your home folder. For each
+project choose which login it uses, add extra `claude` flags if you want,
+and keep notes.
+
+Every project becomes a chip in the expanded notch. Click it and a terminal
+opens in that folder, with `CLAUDE_CONFIG_DIR` set for the chosen login, and
+starts Claude Code. Hover the chip to see the exact command; Settings has
+Copy path and Copy command buttons too.
+
+Under the hood the app writes a small `.command` script to
+`~/Library/Application Support/DuoNotch/launch/` and asks Terminal (or
+iTerm2, pick one in Settings → Projects) to open it. No automation
+permission is needed for launching.
+
+## Chat list and labels
+
+Each account card lists its chats (up to four, most recent first) with a
+state dot, a name, how many turns are done, and how long since it last did
+anything. Names come from, in order:
+
+1. `DUONOTCH_LABEL` in the terminal's environment. The project launcher sets
+   this, or set it yourself: `DUONOTCH_LABEL="Billing fix" claude`
+2. The project whose folder contains the chat's working directory
+3. The first prompt you typed
+4. The folder name
+
+Click a chat to bring its terminal tab to the front. That uses AppleScript,
+so macOS asks once for permission to control Terminal (or iTerm2).
+
 ## Project layout
 
 ```
@@ -182,6 +214,7 @@ duonotch/
         ├── Usage/                usage endpoint client and reading model
         ├── Sessions/             hook server, session model, settings.json installer
         ├── Notch/                NSPanel controller, geometry, SwiftUI views
+        ├── Projects/             project model, terminal launcher, tab raiser
         ├── Settings/             Settings window
         └── Support/              demo data
 ```
@@ -216,7 +249,6 @@ Design notes:
 
 ## Roadmap
 
-- Click a session row to raise its terminal window
 - Per-account alerts at 80 % / 100 %
 - Menu bar text styling, multiple screens, choose which screen hosts the notch
 - Launch-at-login toggle is wired but only works from a bundle in /Applications

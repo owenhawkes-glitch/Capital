@@ -23,6 +23,8 @@ struct ClaudeSession: Identifiable, Equatable {
     var lastPrompt: String?
     var completedTurns: Int = 0
     var claudePid: Int32
+    /// From DUONOTCH_LABEL; nil for terminals started by hand.
+    var label: String? = nil
 
     var projectName: String {
         let name = URL(fileURLWithPath: cwd).lastPathComponent

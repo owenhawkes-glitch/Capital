@@ -98,7 +98,8 @@ guard !input.isEmpty,
 guard let token = HookWire.readToken() else { exit(0) }
 
 let configDir = HookWire.resolveConfigDir(ProcessInfo.processInfo.environment["CLAUDE_CONFIG_DIR"])
-let envelope = HookEnvelope(token: token, configDir: configDir, claudePid: getppid(), payload: payload)
+let label = ProcessInfo.processInfo.environment["DUONOTCH_LABEL"]
+let envelope = HookEnvelope(token: token, configDir: configDir, claudePid: getppid(), label: label, payload: payload)
 let isPermissionRequest = payload.hook_event_name == "PermissionRequest"
 
 // Claude Code's hook timeout for PermissionRequest is set by the app's

@@ -24,6 +24,8 @@
     <string>14.0</string>
     <key>LSUIElement</key>
     <true/>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>DuoNotch brings the terminal tab of a Claude Code session to the front when you click it in the notch.</string>
     <key>NSHumanReadableCopyright</key>
     <string>MIT</string>
 </dict>

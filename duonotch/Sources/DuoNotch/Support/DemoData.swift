@@ -65,6 +65,12 @@ enum DemoData {
             ),
         ]
 
-        state.setDemo(accounts: [personal, work], readings: readings, sessions: sessions, pending: pending)
+        let projects = [
+            Project(name: "Capital", path: "/Users/demo/code/capital", accountID: personal.id, notes: "Globes demo: npm run dev"),
+            Project(name: "API", path: "/Users/demo/work/api", accountID: work.id),
+            Project(name: "Web", path: "/Users/demo/work/web", accountID: work.id),
+        ]
+
+        state.setDemo(accounts: [personal, work], readings: readings, sessions: sessions, pending: pending, projects: projects)
     }
 }

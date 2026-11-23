@@ -36,14 +36,24 @@ struct NotchGeometry {
     }
 }
 
+/// What the expanded panel has to make room for.
+struct NotchLayoutInfo: Equatable {
+    var pendingCount: Int
+    var sessionRows: Int
+    var showsProjects: Bool
+}
+
 enum NotchMetrics {
     /// Space either side of the camera housing for one account's ring.
     static let wingWidth: CGFloat = 92
     /// Gap between the two wings on screens without a hardware notch.
     static let fakeGap: CGFloat = 14
-    static let expandedBaseWidth: CGFloat = 580
+    static let expandedBaseWidth: CGFloat = 600
     static let approvalRowHeight: CGFloat = 46
     static let maxVisibleApprovals = 3
+    static let sessionRowHeight: CGFloat = 18
+    static let maxSessionRows = 4
+    static let projectsRowHeight: CGFloat = 34
 
     static func collapsedWidth(_ g: NotchGeometry) -> CGFloat {
         (g.hasHardwareNotch ? g.notchWidth : fakeGap) + 2 * wingWidth
@@ -53,15 +63,24 @@ enum NotchMetrics {
         max(expandedBaseWidth, collapsedWidth(g))
     }
 
-    static func expandedHeight(_ g: NotchGeometry, pendingCount: Int) -> CGFloat {
-        let visible = min(pendingCount, maxVisibleApprovals)
-        let approvals = visible == 0 ? 0 : CGFloat(visible) * approvalRowHeight + 18
-        return g.notchHeight + 186 + approvals
+    static func expandedHeight(_ g: NotchGeometry, layout: NotchLayoutInfo) -> CGFloat {
+        var height = g.notchHeight + 186
+        if layout.sessionRows > 0 {
+            height += CGFloat(layout.sessionRows) * sessionRowHeight + 8
+        }
+        if layout.showsProjects {
+            height += projectsRowHeight + 6
+        }
+        let visible = min(layout.pendingCount, maxVisibleApprovals)
+        if visible > 0 {
+            height += CGFloat(visible) * approvalRowHeight + 18
+        }
+        return height
     }
 
-    static func size(_ g: NotchGeometry, expanded: Bool, pendingCount: Int) -> CGSize {
+    static func size(_ g: NotchGeometry, expanded: Bool, layout: NotchLayoutInfo) -> CGSize {
         expanded
-            ? CGSize(width: expandedWidth(g), height: expandedHeight(g, pendingCount: pendingCount))
+            ? CGSize(width: expandedWidth(g), height: expandedHeight(g, layout: layout))
             : CGSize(width: collapsedWidth(g), height: g.notchHeight)
     }
 

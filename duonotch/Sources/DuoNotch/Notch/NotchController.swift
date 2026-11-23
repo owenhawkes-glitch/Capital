@@ -83,7 +83,7 @@ final class NotchController {
 
     private func currentFrame() -> NSRect {
         guard let geometry else { return .zero }
-        let size = NotchMetrics.size(geometry, expanded: state.isExpanded, pendingCount: state.pendingPermissions.count)
+        let size = NotchMetrics.size(geometry, expanded: state.isExpanded, layout: state.layout)
         return NotchMetrics.frame(geometry, size: size)
     }
 
@@ -115,7 +115,7 @@ final class NotchController {
 
     private func updateHover() {
         guard let geometry else { return }
-        let size = NotchMetrics.size(geometry, expanded: state.isExpanded, pendingCount: state.pendingPermissions.count)
+        let size = NotchMetrics.size(geometry, expanded: state.isExpanded, layout: state.layout)
         let rect = NotchMetrics.frame(geometry, size: size).insetBy(dx: -6, dy: -6)
         let inside = rect.contains(NSEvent.mouseLocation)
 

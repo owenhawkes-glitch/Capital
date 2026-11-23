@@ -9,12 +9,14 @@ struct SettingsView: View {
         TabView {
             AccountsSettings()
                 .tabItem { Label("Accounts", systemImage: "person.2") }
+            ProjectsSettings()
+                .tabItem { Label("Projects", systemImage: "folder") }
             BehaviourSettings()
                 .tabItem { Label("Behaviour", systemImage: "slider.horizontal.3") }
             AboutSettings()
                 .tabItem { Label("About", systemImage: "info.circle") }
         }
-        .frame(width: 560, height: 520)
+        .frame(width: 620, height: 560)
         .onAppear {
             NSApp.activate(ignoringOtherApps: true)
             state.refreshHooksInstalled()

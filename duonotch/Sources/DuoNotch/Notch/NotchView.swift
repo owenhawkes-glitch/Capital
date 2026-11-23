@@ -22,7 +22,7 @@ struct NotchView: View {
     private var expanded: Bool { state.isExpanded }
 
     private var size: CGSize {
-        NotchMetrics.size(geometry, expanded: expanded, pendingCount: state.pendingPermissions.count)
+        NotchMetrics.size(geometry, expanded: expanded, layout: state.layout)
     }
 
     var body: some View {
@@ -43,7 +43,7 @@ struct NotchView: View {
         .frame(width: size.width, height: size.height, alignment: .top)
         .clipShape(NotchShape(bottomRadius: expanded ? 20 : 11))
         .animation(.spring(response: 0.32, dampingFraction: 0.86), value: expanded)
-        .animation(.spring(response: 0.32, dampingFraction: 0.86), value: state.pendingPermissions.count)
+        .animation(.spring(response: 0.32, dampingFraction: 0.86), value: state.layout)
         .foregroundStyle(.white)
     }
 }
@@ -110,6 +110,11 @@ private struct ExpandedPanel: View {
             }
             .padding(.horizontal, 14)
             .padding(.top, 8)
+
+            if !state.projects.isEmpty {
+                ProjectsRow(state: state)
+                    .padding(.horizontal, 14)
+            }
 
             if !state.pendingPermissions.isEmpty {
                 ApprovalList(state: state)
@@ -189,10 +194,105 @@ private struct AccountCard: View {
             }
 
             SessionsRow(counts: counts, hooksInstalled: state.hooksInstalled[account.id] ?? false)
+
+            let visible = state.sessions(for: account.id).prefix(NotchMetrics.maxSessionRows)
+            if !visible.isEmpty {
+                VStack(spacing: 2) {
+                    ForEach(visible) { session in
+                        SessionRow(state: state, session: session)
+                    }
+                }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
         .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.06)))
+    }
+}
+
+/// One chat: state dot, name, turns, how long since it last did anything.
+/// Clicking brings its terminal tab to the front.
+private struct SessionRow: View {
+    @ObservedObject var state: AppState
+    let session: ClaudeSession
+
+    private var tint: Color {
+        switch session.state {
+        case .running: return .green
+        case .waiting: return .yellow
+        case .idle: return Color.white.opacity(0.55)
+        case .ended: return Color.blue.opacity(0.8)
+        }
+    }
+
+    var body: some View {
+        Button {
+            state.raiseTerminal(for: session)
+        } label: {
+            HStack(spacing: 6) {
+                Circle().fill(tint).frame(width: 5, height: 5)
+                Text(state.displayName(for: session))
+                    .font(.system(size: 10, weight: .medium))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Spacer(minLength: 4)
+                Text(session.completedTurns == 1 ? "1 turn" : "\(session.completedTurns) turns")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                Text(Formatting.age(since: session.lastEvent))
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                    .frame(width: 44, alignment: .trailing)
+            }
+            .opacity(session.state == .ended ? 0.6 : 1)
+            .frame(height: NotchMetrics.sessionRowHeight - 2)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("\(session.cwd)\nClick to show this terminal")
+    }
+}
+
+// MARK: - Projects
+
+/// Chips for your projects. Click one to open a terminal there with the
+/// right login and start Claude Code.
+private struct ProjectsRow: View {
+    @ObservedObject var state: AppState
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                Text("Open")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.trailing, 2)
+                ForEach(state.projects) { project in
+                    Button {
+                        state.launch(project)
+                    } label: {
+                        HStack(spacing: 5) {
+                            Circle()
+                                .fill(state.account(for: project)?.color ?? .gray)
+                                .frame(width: 6, height: 6)
+                            Text(project.name)
+                                .font(.system(size: 10, weight: .medium))
+                                .lineLimit(1)
+                        }
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 5)
+                        .background(Capsule().fill(Color.white.opacity(0.1)))
+                        .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .help("\(ProjectLauncher.commandLine(for: project, account: state.account(for: project)))\(project.notes.isEmpty ? "" : "\n\n" + project.notes)")
+                }
+            }
+            .padding(.vertical, 2)
+        }
+        .frame(height: NotchMetrics.projectsRowHeight - 6)
     }
 }
 

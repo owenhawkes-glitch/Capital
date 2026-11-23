@@ -37,6 +37,15 @@ enum Formatting {
         return "\(minutes)m"
     }
 
+    /// "just now", "4m", "2h", "3d" – how long ago something happened.
+    static func age(since date: Date, now: Date = Date()) -> String {
+        let seconds = Int(now.timeIntervalSince(date))
+        if seconds < 60 { return "just now" }
+        if seconds < 3_600 { return "\(seconds / 60)m" }
+        if seconds < 86_400 { return "\(seconds / 3_600)h" }
+        return "\(seconds / 86_400)d"
+    }
+
     static func planName(_ subscriptionType: String?) -> String {
         guard let s = subscriptionType, !s.isEmpty else { return "" }
         return s.prefix(1).uppercased() + s.dropFirst()

@@ -35,12 +35,16 @@ public struct HookEnvelope: Codable {
     public var configDir: String
     /// PID of the `claude` process that ran the hook (the hook's parent).
     public var claudePid: Int32
+    /// DUONOTCH_LABEL from the session's environment, if the terminal was
+    /// started with one (DuoNotch's project launcher sets it).
+    public var label: String?
     public var payload: HookPayload
 
-    public init(token: String, configDir: String, claudePid: Int32, payload: HookPayload) {
+    public init(token: String, configDir: String, claudePid: Int32, label: String? = nil, payload: HookPayload) {
         self.token = token
         self.configDir = configDir
         self.claudePid = claudePid
+        self.label = label
         self.payload = payload
     }
 }

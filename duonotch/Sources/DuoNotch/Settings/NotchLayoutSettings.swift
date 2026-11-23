@@ -85,6 +85,8 @@ struct NotchLayoutSettings: View {
         case .app(let id): return apps.shortcuts.first { $0.id == id }?.name
         case .clipboard: return "Clipboard"
         case .chats: return "Chats running / waiting"
+        case .media: return "Play / pause (Spotify, Music)"
+        case .files: return "File shelf"
         }
     }
 
@@ -105,6 +107,10 @@ struct NotchLayoutSettings: View {
             symbolRing("doc.on.clipboard", item.colorHex)
         case .chats:
             symbolRing("bubble.left.and.bubble.right", item.colorHex)
+        case .media:
+            symbolRing("play.fill", item.colorHex)
+        case .files:
+            symbolRing("tray.full", item.colorHex)
         }
     }
 

@@ -57,8 +57,47 @@ final class AppState: ObservableObject {
     /// Opens only on hover by default. Peeks and approvals open it only when
     /// the matching setting is on.
     var isExpanded: Bool {
-        pinnedOpen || hovering || dragging || peeking
-            || (openForApprovals && !pendingPermissions.isEmpty)
+        if pinnedOpen || dragging || fileDragOver { return true }
+        if placement == .floating && floatingOpensOnClick { return floatingOpen }
+        return hovering || peeking || (openForApprovals && !pendingPermissions.isEmpty)
+    }
+
+    /// Floating window opened by a click; stays open until closed.
+    @Published var floatingOpen = false
+    /// Files are being dragged over the notch.
+    @Published var fileDragOver = false
+
+    // MARK: Panel layout (persisted)
+
+    @Published var panelModules: [PanelModuleConfig] {
+        didSet { saveCodable(panelModules, Keys.panelModules) }
+    }
+    @Published var panelLayout: PanelLayoutStyle {
+        didSet { defaults.set(panelLayout.rawValue, forKey: Keys.panelLayout) }
+    }
+    @Published var panelWidth: Double {
+        didSet { defaults.set(panelWidth, forKey: Keys.panelWidth) }
+    }
+    @Published var floatingOpensOnClick: Bool {
+        didSet { defaults.set(floatingOpensOnClick, forKey: Keys.floatingClick) }
+    }
+
+    func isEnabled(_ module: PanelModule) -> Bool {
+        panelModules.contains { $0.module == module && $0.enabled }
+    }
+
+    /// Tabs shown in tab mode, in the order their first section appears.
+    var visibleTabs: [NotchTab] {
+        var tabs: [NotchTab] = []
+        for config in panelModules where config.enabled && !tabs.contains(config.module.tab) {
+            tabs.append(config.module.tab)
+        }
+        return tabs
+    }
+
+    func show(tab: NotchTab) {
+        selectedTab = tab
+        if placement == .floating && floatingOpensOnClick { floatingOpen = true }
     }
 
     // MARK: Preferences (persisted in UserDefaults)
@@ -106,6 +145,10 @@ final class AppState: ObservableObject {
         static let placement = "placement"
         static let floatingOrigin = "floatingOrigin"
         static let notchItems = "notchItems.v1"
+        static let panelModules = "panelModules.v1"
+        static let panelLayout = "panelLayout"
+        static let panelWidth = "panelWidth"
+        static let floatingClick = "floatingOpensOnClick"
         static let menuBarText = "showMenuBarText"
         static let projects = "projects.v1"
         static let terminalApp = "terminalApp"
@@ -142,6 +185,13 @@ final class AppState: ObservableObject {
         accounts = Self.loadPersistedAccounts()
         projects = Self.loadPersistedProjects()
         notchItems = Self.loadPersistedNotchItems()
+        var modules = Self.loadCodable([PanelModuleConfig].self, Keys.panelModules) ?? PanelModuleConfig.defaults
+        for d in PanelModuleConfig.defaults where !modules.contains(where: { $0.module == d.module }) { modules.append(d) }
+        panelModules = modules
+        panelLayout = PanelLayoutStyle(rawValue: stored.string(forKey: Keys.panelLayout) ?? "") ?? .tabs
+        let width = stored.double(forKey: Keys.panelWidth)
+        panelWidth = width >= 500 ? width : 600
+        floatingOpensOnClick = stored.object(forKey: Keys.floatingClick) as? Bool ?? true
         terminalApp = ProjectLauncher.TerminalApp(rawValue: stored.string(forKey: Keys.terminalApp) ?? "") ?? .terminal
     }
 
@@ -580,7 +630,7 @@ final class AppState: ObservableObject {
             switch item.kind {
             case .account(let id): return accounts.contains { $0.id == id && $0.enabled }
             case .app(let id): return apps.contains { $0.id == id }
-            case .clipboard, .chats: return true
+            case .clipboard, .chats, .media, .files: return true
             }
         }
         return NotchStrip(left: visible.filter { $0.side == .left },
@@ -606,6 +656,12 @@ final class AppState: ObservableObject {
         if !has(.clipboard) {
             items.append(NotchItem(kind: .clipboard, side: .left, enabled: false, colorHex: AccountPalette.presets[3].hex))
         }
+        if !has(.media) {
+            items.append(NotchItem(kind: .media, side: .right, enabled: true, colorHex: AccountPalette.presets[2].hex))
+        }
+        if !has(.files) {
+            items.append(NotchItem(kind: .files, side: .left, enabled: false, colorHex: AccountPalette.presets[5].hex))
+        }
         if !has(.chats) {
             items.append(NotchItem(kind: .chats, side: .left, enabled: false, colorHex: AccountPalette.presets[2].hex))
         }
@@ -623,6 +679,15 @@ final class AppState: ObservableObject {
         if let data = try? JSONEncoder().encode(notchItems) {
             defaults.set(data, forKey: Keys.notchItems)
         }
+    }
+
+    private func saveCodable<T: Encodable>(_ value: T, _ key: String) {
+        if let data = try? JSONEncoder().encode(value) { defaults.set(data, forKey: key) }
+    }
+
+    private static func loadCodable<T: Decodable>(_ type: T.Type, _ key: String) -> T? {
+        guard let data = UserDefaults.standard.data(forKey: key) else { return nil }
+        return try? JSONDecoder().decode(type, from: data)
     }
 
     // MARK: - Notch layout

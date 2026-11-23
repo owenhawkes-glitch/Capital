@@ -78,7 +78,8 @@ enum DemoData {
             var item = item
             switch item.kind {
             case .chats: item.enabled = true; item.side = .left
-            case .clipboard, .app: item.enabled = true; item.side = .right
+            case .clipboard, .app, .media: item.enabled = true; item.side = .right
+            case .files: item.enabled = true; item.side = .left
             case .account: break
             }
             return item

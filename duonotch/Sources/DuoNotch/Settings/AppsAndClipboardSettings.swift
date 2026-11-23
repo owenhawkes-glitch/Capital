@@ -13,6 +13,7 @@ struct AppsSettings: View {
                 .font(.callout)
                 .fixedSize(horizontal: false, vertical: true)
 
+            Toggle("Show apps in their original colours (ignore the system's clear/tinted icon style)", isOn: $store.originalColours)
             HStack {
                 Button("Add app…") { addApps() }
                 Button("Pick from open apps") { candidates = store.runningCandidates() }

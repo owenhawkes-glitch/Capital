@@ -7,6 +7,8 @@ enum NotchItemKind: Codable, Hashable {
     case app(UUID)         // AppShortcut id
     case clipboard
     case chats
+    case media
+    case files
 }
 
 enum NotchSide: String, Codable, CaseIterable, Identifiable {
@@ -27,7 +29,8 @@ struct NotchItem: Codable, Identifiable, Equatable {
         switch kind {
         case .account: return 62
         case .app: return 22
-        case .clipboard, .chats: return 40
+        case .clipboard, .chats, .files: return 40
+        case .media: return 22
         }
     }
 
@@ -36,7 +39,8 @@ struct NotchItem: Codable, Identifiable, Equatable {
         switch kind {
         case .account: return 34
         case .app: return 24
-        case .clipboard, .chats: return 32
+        case .clipboard, .chats, .files: return 32
+        case .media: return 24
         }
     }
 }
@@ -64,6 +68,8 @@ struct NotchItemView: View {
     @ObservedObject var state: AppState
     @ObservedObject private var apps = AppShortcutStore.shared
     @ObservedObject private var clipboard = ClipboardStore.shared
+    @ObservedObject private var media = MediaStore.shared
+    @ObservedObject private var shelf = FileShelf.shared
     let item: NotchItem
     var vertical = false
 
@@ -87,7 +93,7 @@ struct NotchItemView: View {
                 .help(app.name + (apps.isRunning(app) ? " (running)" : ""))
             }
         case .clipboard:
-            Button { state.selectedTab = .clipboard } label: {
+            Button { state.show(tab: .clipboard) } label: {
                 badge(symbol: "doc.on.clipboard", count: clipboard.history.count,
                       color: Color(hex: item.colorHex), active: !clipboard.history.isEmpty)
             }
@@ -96,12 +102,33 @@ struct NotchItemView: View {
         case .chats:
             let running = state.sessions.filter { $0.state == .running }.count
             let waiting = state.sessions.filter { $0.state == .waiting }.count
-            Button { state.selectedTab = .claude } label: {
+            Button { state.show(tab: .claude) } label: {
                 badge(symbol: "bubble.left.and.bubble.right", count: running + waiting,
                       color: waiting > 0 ? .yellow : Color(hex: item.colorHex), active: running + waiting > 0)
             }
             .buttonStyle(.plain)
             .help("\(running) running, \(waiting) waiting on you")
+        case .media:
+            let playing = media.track?.isPlaying == true
+            Button { media.playPause() } label: {
+                ZStack {
+                    Circle().stroke(Color(hex: item.colorHex).opacity(playing ? 1 : 0.35), lineWidth: 2)
+                    Image(systemName: playing ? "pause.fill" : "play.fill")
+                        .font(.system(size: 7, weight: .bold))
+                        .foregroundStyle(Color(hex: item.colorHex))
+                }
+                .frame(width: 18, height: 18)
+                .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .help(media.track.map { "\($0.title) · \($0.artist)" } ?? "Play / pause")
+        case .files:
+            Button { state.show(tab: .files) } label: {
+                badge(symbol: "tray.full", count: shelf.files.count,
+                      color: Color(hex: item.colorHex), active: !shelf.files.isEmpty)
+            }
+            .buttonStyle(.plain)
+            .help("File shelf: \(shelf.files.count) files. Drop files on the notch to park them.")
         }
     }
 

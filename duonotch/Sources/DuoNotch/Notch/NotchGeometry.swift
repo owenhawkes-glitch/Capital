@@ -84,10 +84,10 @@ enum NotchMetrics {
         }
     }
 
-    static func expandedSize(_ g: NotchGeometry, placement: NotchPlacement, strip: NotchStrip, contentHeight: CGFloat) -> CGSize {
+    static func expandedSize(_ g: NotchGeometry, placement: NotchPlacement, strip: NotchStrip, width: CGFloat, contentHeight: CGFloat) -> CGSize {
         let collapsed = collapsedSize(g, placement: placement, strip: strip)
         let top: CGFloat = placement == .top ? g.notchHeight : 0
-        return CGSize(width: max(expandedWidth, placement == .top ? collapsed.width : 0),
+        return CGSize(width: max(width, placement == .top ? collapsed.width : 0),
                       height: top + contentHeight)
     }
 

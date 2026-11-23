@@ -219,12 +219,45 @@ reorder. The notch grows to fit and stays centred.
   is waiting on you.
 - **Account colours** set here also change the account cards.
 
+## Panel layout (bento)
+
+Settings → **Panel** chooses how the expanded notch looks:
+
+- **Tabs** (Claude, Music, Files, Clipboard) or **Everything in one long
+  panel**, where sections sit in a grid
+- **Width**: Standard, Wide or Extra wide
+- **Sections**: switch each on or off, make it half or full width (half-width
+  sections pair up side by side), and reorder with the arrows
+
+## Music
+
+A play/pause ring can sit in the closed notch, and the panel has a
+now-playing card with artwork, track, artist and back / play / next. Works
+with Spotify and Apple Music. Track changes are read from the
+notifications both apps already broadcast; the buttons use AppleScript, so
+macOS asks once for permission to control Spotify or Music.
+
+## File shelf
+
+Drag files onto the notch to park them there, then drag them back out to
+wherever you want them (that moves the file, as in Finder; hold ⌥ to copy).
+Double-click a file to open it, right-click for Show in Finder, Copy or
+Remove. The shelf keeps references only, nothing is copied, and files that
+were moved or deleted drop off.
+
+## Floating window
+
+In the floating position the panel opens on click and stays open like a
+window until you press × (Settings → Behaviour switches it back to hover).
+
 ## Apps and clipboard
 
 The expanded panel has two tabs, **Claude** and **Clipboard**, and a row of
 app icons on the right of the tab bar.
 
-- **Apps**: Settings → Apps → **Add app…** or **Pick from open apps**. Click an
+- **Apps**: Settings → Apps → **Add app…** or **Pick from open apps**. Icons
+  show in each app's original colours even if macOS is set to clear or
+  tinted icons (switchable). Click an
   icon to open or switch to the app; a dot underneath means it's running.
 - **Clipboard**: the last 20 text copies (10/20/50 in Settings) and your
   pinned snippets. Click a row to copy it back. The pin icon saves a recent
@@ -269,6 +302,8 @@ duonotch/
         ├── Projects/             project model, terminal launcher, tab raiser
         ├── Apps/                 pinned app shortcuts
         ├── Clipboard/            clipboard history and snippets
+        ├── Media/                Spotify / Apple Music now playing
+        ├── Files/                file shelf
         ├── Settings/             Settings window
         └── Support/              demo data
 ```

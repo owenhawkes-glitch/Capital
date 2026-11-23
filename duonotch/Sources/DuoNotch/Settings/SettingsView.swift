@@ -11,6 +11,8 @@ struct SettingsView: View {
                 .tabItem { Label("Accounts", systemImage: "person.2") }
             NotchLayoutSettings()
                 .tabItem { Label("Notch", systemImage: "rectangle.topthird.inset.filled") }
+            PanelSettings()
+                .tabItem { Label("Panel", systemImage: "square.grid.3x2") }
             ProjectsSettings()
                 .tabItem { Label("Projects", systemImage: "folder") }
             AppsSettings()
@@ -22,7 +24,7 @@ struct SettingsView: View {
             AboutSettings()
                 .tabItem { Label("About", systemImage: "info.circle") }
         }
-        .frame(width: 720, height: 600)
+        .frame(width: 760, height: 620)
         .onAppear {
             NSApp.activate(ignoringOtherApps: true)
             state.refreshHooksInstalled()
@@ -212,6 +214,7 @@ private struct BehaviourSettings: View {
                     }
                 }
                 if state.placement == .floating {
+                    Toggle("Floating window opens on click and stays open (off = open on hover)", isOn: $state.floatingOpensOnClick)
                     HStack {
                         Text("Drag the empty part of the top bar to move it.")
                             .font(.caption).foregroundStyle(.secondary)

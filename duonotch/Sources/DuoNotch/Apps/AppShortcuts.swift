@@ -74,11 +74,30 @@ final class AppShortcutStore: ObservableObject {
         runningPaths.contains(shortcut.path)
     }
 
+    /// Show apps in their own colours even when macOS is set to a
+    /// monochrome icon style (Clear/Tinted). Off = follow the system style.
+    @Published var originalColours: Bool = UserDefaults.standard.object(forKey: "apps.originalColours") as? Bool ?? true {
+        didSet {
+            UserDefaults.standard.set(originalColours, forKey: "apps.originalColours")
+            iconCache = [:]
+        }
+    }
+
     func icon(for shortcut: AppShortcut) -> NSImage {
         if let cached = iconCache[shortcut.path] { return cached }
-        let image = NSWorkspace.shared.icon(forFile: shortcut.path)
+        let image = (originalColours ? Self.bundleIcon(at: shortcut.url) : nil)
+            ?? NSWorkspace.shared.icon(forFile: shortcut.path)
         iconCache[shortcut.path] = image
         return image
+    }
+
+    /// The app's own .icns file, which isn't restyled by the system.
+    private static func bundleIcon(at url: URL) -> NSImage? {
+        guard let bundle = Bundle(url: url),
+              var name = bundle.infoDictionary?["CFBundleIconFile"] as? String else { return nil }
+        if !name.hasSuffix(".icns") { name += ".icns" }
+        let file = url.appendingPathComponent("Contents/Resources").appendingPathComponent(name)
+        return NSImage(contentsOf: file)
     }
 
     /// Regular apps that are open now and not already pinned, for quick adding.

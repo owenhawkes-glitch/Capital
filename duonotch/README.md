@@ -49,6 +49,10 @@ The first time it reads a login's token the keychain will ask
 Allow**. The debug build is ad-hoc signed so the choice sticks for that
 build; rebuilding may ask again.
 
+**Can't see the menu bar icon?** On a MacBook with a notch, macOS hides
+menu bar icons that don't fit. Right-click the notch itself instead: it has
+Settings, Refresh and Quit.
+
 ## Two logins
 
 Claude Code keeps everything about a login in its config directory:

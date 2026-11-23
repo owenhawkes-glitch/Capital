@@ -45,6 +45,13 @@ struct NotchView: View {
         .animation(.spring(response: 0.32, dampingFraction: 0.86), value: expanded)
         .animation(.spring(response: 0.32, dampingFraction: 0.86), value: state.layout)
         .foregroundStyle(.white)
+        .contextMenu {
+            Button("Settings…") { AppState.openSettings() }
+            Button("Refresh usage now") { Task { await state.refreshAll() } }
+            Button(state.pinnedOpen ? "Unpin notch" : "Pin notch open") { state.pinnedOpen.toggle() }
+            Divider()
+            Button("Quit DuoNotch") { NSApplication.shared.terminate(nil) }
+        }
     }
 }
 

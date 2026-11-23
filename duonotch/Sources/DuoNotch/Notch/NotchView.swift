@@ -123,6 +123,13 @@ private struct NotchContextMenu: View {
                 }
             }
         }
+        if !state.notchPresets.isEmpty {
+            Menu("Layout preset") {
+                ForEach(state.notchPresets) { preset in
+                    Button(preset.name) { state.applyPreset(preset) }
+                }
+            }
+        }
         if state.placement != .top {
             Menu("Size") {
                 ForEach([("Small", 0.85), ("Normal", 1.0), ("Large", 1.35), ("Extra large", 1.7)], id: \.1) { option in
@@ -162,7 +169,7 @@ private struct CompactPill: View {
     var body: some View {
         let items = state.strip.all
         let scale = state.notchScale
-        let layout = vertical ? AnyLayout(VStackLayout(spacing: 10 * scale)) : AnyLayout(HStackLayout(spacing: 12 * scale))
+        let layout = vertical ? AnyLayout(VStackLayout(spacing: NotchStrip.spacing * 1.25 * scale)) : AnyLayout(HStackLayout(spacing: NotchStrip.spacing * 1.5 * scale))
         layout {
             if items.isEmpty {
                 Text("–").font(.system(size: 11)).foregroundStyle(.secondary)

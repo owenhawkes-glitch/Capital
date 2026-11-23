@@ -228,6 +228,11 @@ side) to move it to the other side. Icons in the panel's top bar can be
 dragged the same way. Right-click → **Size** makes the edge and floating
 notch Small, Normal, Large or Extra large.
 
+Each position (top, left, right, floating) keeps its **own items, order
+and spacing**, so the top can show apps and the left edge tickers. Add
+**spacers** and **dividers** to separate groups, set the gap between icons,
+and save named **presets** to apply anywhere (also in the right-click menu).
+
 Settings → **Notch** lists everything that can sit in the closed notch:
 each Claude account's usage ring, each pinned app, a clipboard counter and
 a chats counter. For each one you can switch it on, choose a colour, and
@@ -263,9 +268,11 @@ terminal there, or double-click to open it.
 ## Arrange the open notch
 
 Click **Arrange** in the open notch's top bar. Each section gets a dashed
-frame: drag it to reorder, use **−/+** to size it (S, M, L, XL), or the
-eye to hide it. In the long row, small and medium cards stack two to a
-column. Hidden sections show as chips at the bottom so you can bring
+frame: drag it onto the **top half** of another card to place it before
+that card, or onto the **bottom half** to stack it underneath (e.g. Links
+under Spotify). The stack button does the same for the card before it.
+Use **−/+** to size cards (S, M, L, XL) and the eye to hide one. Small and
+medium cards you haven't placed yourself pair up automatically. Hidden sections show as chips at the bottom so you can bring
 them back. Click **Done** when finished. Settings → Panel → **Compact**
 shrinks the columns, and there's a Compact width too.
 

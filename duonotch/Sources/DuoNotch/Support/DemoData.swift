@@ -82,9 +82,18 @@ enum DemoData {
             case .files: item.enabled = true; item.side = .left
             case .link, .ticker: item.enabled = true; item.side = .right
             case .clock, .weather, .logo: item.enabled = true; item.side = .left
+            case .spacer, .divider: break
             case .account: break
             }
             return item
+        }
+        // A divider after the first account and a spacer before the apps.
+        if let first = state.notchItems.firstIndex(where: { if case .account = $0.kind { return true }; return false }) {
+            state.notchItems.insert(NotchItem(kind: .divider(UUID()), side: .left, enabled: true, colorHex: "#E6E6E6"), at: first + 1)
+        }
+        if let app = state.notchItems.firstIndex(where: { if case .app = $0.kind { return $0.enabled }; return false }) {
+            state.notchItems.insert(NotchItem(kind: .spacer(UUID()), side: .right, enabled: true, colorHex: "#E6E6E6"), at: app)
+            state.notchItems.insert(NotchItem(kind: .divider(UUID()), side: .right, enabled: true, colorHex: "#E6E6E6"), at: app)
         }
     }
 }

@@ -14,6 +14,15 @@ enum NotchItemKind: Codable, Hashable {
     case ticker(UUID)      // Ticker id
     case weather
     case logo
+    case spacer(UUID)
+    case divider(UUID)
+
+    var isSeparator: Bool {
+        switch self {
+        case .spacer, .divider: return true
+        default: return false
+        }
+    }
 }
 
 enum NotchSide: String, Codable, CaseIterable, Identifiable {
@@ -45,6 +54,8 @@ struct NotchItem: Codable, Identifiable, Equatable {
         case .ticker: return 118
         case .weather: return 46
         case .logo: return 20
+        case .spacer: return 12
+        case .divider: return 9
         case .account: return 62
         case .app: return 22
         case .clipboard, .chats, .files: return 40
@@ -68,6 +79,8 @@ struct NotchItem: Codable, Identifiable, Equatable {
         case .weather: return 34
         case .ticker: return 40
         case .logo: return 22
+        case .spacer: return 10
+        case .divider: return 9
         case .account: return 34
         case .app: return 24
         case .clipboard, .chats, .files: return 32
@@ -82,7 +95,8 @@ struct NotchStrip: Equatable {
     var right: [NotchItem]
 
     var all: [NotchItem] { left + right }
-    static let spacing: CGFloat = 8
+    /// Gap between items, from Settings → Notch items.
+    @MainActor static var spacing: CGFloat { CGFloat(AppState.shared.notchItemSpacing) }
     static let padding: CGFloat = 20
 
     @MainActor
@@ -265,6 +279,16 @@ struct NotchItemView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+        case .spacer:
+            Color.clear
+                .frame(width: vertical ? px(10) : px(12), height: vertical ? px(10) : px(12))
+                .contentShape(Rectangle())
+        case .divider:
+            Capsule()
+                .fill(Color(hex: item.colorHex).opacity(0.5))
+                .frame(width: vertical ? px(18) : max(1, scale), height: vertical ? max(1, scale) : px(16))
+                .padding(vertical ? .vertical : .horizontal, px(4))
+                .contentShape(Rectangle())
         case .files:
             Button { state.show(tab: .files) } label: {
                 badge(symbol: "tray.full", count: shelf.files.count,
@@ -376,4 +400,12 @@ struct VolumeSlider: View {
         }
         .help("Volume \(Int(value))%")
     }
+}
+
+/// A saved layout of the closed notch.
+struct NotchPreset: Codable, Identifiable, Equatable {
+    var id: UUID = UUID()
+    var name: String
+    var items: [NotchItem]
+    var spacing: Double
 }

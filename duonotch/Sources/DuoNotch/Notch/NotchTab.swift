@@ -75,6 +75,9 @@ struct PanelModuleConfig: Codable, Identifiable, Equatable {
     var fullWidth: Bool
     /// nil on configs saved before sizes existed.
     var size: CardSize?
+    /// Sit under the previous card (true), in its own column (false), or
+    /// nil = automatic (small/medium cards pair up).
+    var stackUnder: Bool?
     var id: String { module.rawValue }
 
     var cardSize: CardSize {

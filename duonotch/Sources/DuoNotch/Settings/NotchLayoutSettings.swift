@@ -5,15 +5,69 @@ import AppKit
 struct NotchLayoutSettings: View {
     @EnvironmentObject private var state: AppState
     @ObservedObject private var apps = AppShortcutStore.shared
+    @State private var presetName = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Choose what the closed notch shows. The notch gets longer as you switch more on, and stays centred, so both sides grow to the wider one. Use the arrows or drag rows to change the order.")
                 .font(.callout)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("App rings are solid while the app is running. The chats ring turns amber when a chat is waiting on you. Add more apps in the Apps tab.")
-                .font(.caption).foregroundStyle(.secondary)
+            Text("Each position (top, left, right, floating) keeps its own items and order. You're editing: \(state.placement.name).")
+                .font(.caption.weight(.semibold))
                 .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 12) {
+                Button("Add spacer") { state.addSeparator(divider: false) }
+                Button("Add divider") { state.addSeparator(divider: true) }
+                Spacer()
+                Text("Gap between icons")
+                Picker("", selection: $state.notchItemSpacing) {
+                    Text("Tight").tag(4.0)
+                    Text("Normal").tag(8.0)
+                    Text("Relaxed").tag(12.0)
+                    Text("Roomy").tag(16.0)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 280)
+            }
+
+            GroupBox("Presets") {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        TextField("Name, e.g. Trading or Coding", text: $presetName)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 240)
+                        Button("Save current layout") {
+                            state.savePreset(named: presetName)
+                            presetName = ""
+                        }
+                        Spacer()
+                    }
+                    if state.notchPresets.isEmpty {
+                        Text("Save a layout, then apply it to any position with one click.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    } else {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(state.notchPresets) { preset in
+                                    HStack(spacing: 6) {
+                                        Button(preset.name) { state.applyPreset(preset) }
+                                            .help("Apply to \(state.placement.name)")
+                                        Button { state.deletePreset(preset) } label: {
+                                            Image(systemName: "xmark.circle.fill")
+                                        }
+                                        .buttonStyle(.plain)
+                                        .foregroundStyle(.secondary)
+                                        .help("Delete preset")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(4)
+            }
 
             List {
                 ForEach($state.notchItems) { $item in
@@ -39,6 +93,11 @@ struct NotchLayoutSettings: View {
                             .labelsHidden()
                             .frame(width: 110)
                             .disabled(state.placement != .top)
+                            if item.kind.isSeparator {
+                                Button { state.removeNotchItem(item) } label: { Image(systemName: "trash") }
+                                    .buttonStyle(.plain)
+                                    .help("Remove")
+                            }
                             OrderButtons(
                                 canMoveUp: state.notchItems.first?.id != item.id,
                                 canMoveDown: state.notchItems.last?.id != item.id,
@@ -51,7 +110,7 @@ struct NotchLayoutSettings: View {
                 }
                 .onMove { state.notchItems.move(fromOffsets: $0, toOffset: $1) }
             }
-            .frame(minHeight: 300)
+            .frame(minHeight: 260)
 
             if state.placement != .top {
                 Text("Left/right only applies to the top position. On an edge or floating, items show in list order.")
@@ -91,6 +150,8 @@ struct NotchLayoutSettings: View {
         case .clock(let id): return ClockStore.shared.clocks.first { $0.id == id }.map { "Clock: \($0.label.isEmpty ? ($0.isLocal ? "Local" : $0.timeZoneID) : $0.label) (\($0.style.name))" }
         case .ticker(let id): return MarketStore.shared.tickers.first { $0.id == id }.map { "Ticker: \($0.name)" }
         case .weather: return "Weather"
+        case .spacer: return "Spacer (empty gap)"
+        case .divider: return "Divider (thin line)"
         case .logo: return "Notch icon (choose it in Appearance)"
         }
     }
@@ -122,6 +183,10 @@ struct NotchLayoutSettings: View {
             symbolRing("chart.line.uptrend.xyaxis", item.colorHex)
         case .weather:
             Image(systemName: "cloud.sun.fill").symbolRenderingMode(.multicolor)
+        case .spacer:
+            Image(systemName: "arrow.left.and.right").foregroundStyle(.secondary)
+        case .divider:
+            Capsule().fill(Color(hex: item.colorHex)).frame(width: 2, height: 16)
         case .logo:
             Image(systemName: AppearanceStore.shared.logoSymbol).foregroundStyle(Color(hex: item.colorHex))
         case .link(let id):

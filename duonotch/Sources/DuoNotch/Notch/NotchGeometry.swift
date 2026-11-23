@@ -83,10 +83,10 @@ enum NotchMetrics {
         case .top:
             return CGSize(width: (g.hasHardwareNotch ? g.notchWidth : fakeGap) + 2 * strip.wingWidth, height: g.notchHeight)
         case .left, .right:
-            let h = items.reduce(0) { $0 + $1.height } + 10 * CGFloat(max(items.count - 1, 0)) + 20
+            let h = items.reduce(0) { $0 + $1.height } + NotchStrip.spacing * 1.25 * CGFloat(max(items.count - 1, 0)) + 20
             return CGSize(width: sideWidth, height: max(h, 52))
         case .floating:
-            let w = items.reduce(0) { $0 + $1.width } + 12 * CGFloat(max(items.count - 1, 0)) + 24
+            let w = items.reduce(0) { $0 + $1.width } + NotchStrip.spacing * 1.5 * CGFloat(max(items.count - 1, 0)) + 24
             return CGSize(width: max(w, 80), height: floatingHeight)
         }
     }

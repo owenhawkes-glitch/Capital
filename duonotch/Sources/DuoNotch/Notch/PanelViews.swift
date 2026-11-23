@@ -72,11 +72,15 @@ struct ExpandedPanel: View {
                 .frame(width: width - 2 * PanelMetrics.sidePadding)
             } else {
                 VStack(spacing: 10) {
-                    ForEach(bentoRows(), id: \.first!.id) { row in
+                    ForEach(bentoRows(), id: \.first!.first!.id) { row in
                         HStack(alignment: .top, spacing: 10) {
-                            ForEach(row) { config in
-                                ArrangeTile(state: state, config: config, half: row.count > 1)
-                                    .frame(maxWidth: .infinity, alignment: .top)
+                            ForEach(row, id: \.first!.id) { stack in
+                                VStack(spacing: 10) {
+                                    ForEach(stack) { config in
+                                        ArrangeTile(state: state, config: config, half: row.count > 1)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .top)
                             }
                         }
                     }
@@ -118,18 +122,19 @@ struct ExpandedPanel: View {
         shown.filter { $0.module.tab == tab }
     }
 
-    /// Full-width sections get their own row; half-width ones pair up.
-    private func bentoRows() -> [[PanelModuleConfig]] {
-        var rows: [[PanelModuleConfig]] = []
-        var pending: PanelModuleConfig?
-        for config in shown {
-            if config.fullWidth {
+    /// Stacks of cards: full-size stacks get their own row, half-size ones pair up.
+    private func bentoRows() -> [[[PanelModuleConfig]]] {
+        var rows: [[[PanelModuleConfig]]] = []
+        var pending: [PanelModuleConfig]?
+        for stack in state.rowColumns {
+            let full = stack.contains { $0.cardSize >= .large }
+            if full {
                 if let p = pending { rows.append([p]); pending = nil }
-                rows.append([config])
+                rows.append([stack])
             } else if let p = pending {
-                rows.append([p, config]); pending = nil
+                rows.append([p, stack]); pending = nil
             } else {
-                pending = config
+                pending = stack
             }
         }
         if let p = pending { rows.append([p]) }
@@ -600,6 +605,10 @@ struct ArrangeTile: View {
     @ObservedObject var state: AppState
     let config: PanelModuleConfig
     let half: Bool
+    @State private var dropZone: DropZone?
+    @State private var tileHeight: CGFloat = 100
+
+    enum DropZone { case before, under }
 
     var body: some View {
         if state.arranging {
@@ -618,6 +627,10 @@ struct ArrangeTile: View {
                         Button { state.resize(config.module, by: 1) } label: { Image(systemName: "plus") }
                             .disabled(config.cardSize == .xlarge)
                             .help("Bigger")
+                        Button { state.toggleStack(config.module) } label: {
+                            Image(systemName: state.isStacked(config.module) ? "rectangle.split.2x1" : "rectangle.split.1x2")
+                        }
+                        .help(state.isStacked(config.module) ? "Move to its own column" : "Put under the card before it")
                         Button { state.setModule(config.module, enabled: false) } label: { Image(systemName: "eye.slash") }
                             .help("Hide this section")
                     }
@@ -632,9 +645,28 @@ struct ArrangeTile: View {
                     RoundedRectangle(cornerRadius: 11)
                         .strokeBorder(Color.white.opacity(0.55), style: StrokeStyle(lineWidth: 1.2, dash: [5, 4]))
                 )
+                .overlay(alignment: dropZone == .under ? .bottom : .top) {
+                    if let dropZone {
+                        Capsule()
+                            .fill(Color.accentColor)
+                            .frame(height: 3)
+                            .padding(.horizontal, 8)
+                            .overlay(
+                                Text(dropZone == .under ? "Drop to stack under" : "Drop to place before")
+                                    .font(.system(size: 8, weight: .bold))
+                                    .padding(.horizontal, 6).padding(.vertical, 2)
+                                    .background(Capsule().fill(Color.accentColor))
+                            )
+                    }
+                }
+                .background(GeometryReader { proxy in
+                    Color.clear.onAppear { tileHeight = proxy.size.height }
+                        .onChange(of: proxy.size.height) { _, h in tileHeight = h }
+                })
                 .contentShape(Rectangle())
                 .reorderSource(id: config.module.rawValue)
-                .reorderTarget(id: config.module.rawValue) { state.moveModule(dragged: $0, onto: $1) }
+                .onDrop(of: [.duoNotchReorder], delegate: ModuleDropDelegate(
+                    targetID: config.module.rawValue, height: tileHeight, state: state, zone: $dropZone))
         } else {
             ModuleView(state: state, module: config.module, half: half)
         }
@@ -829,5 +861,40 @@ struct AccountFilterBar: View {
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// Drops onto a card: the top half places the dragged card before it, the
+/// bottom half stacks it underneath.
+struct ModuleDropDelegate: DropDelegate {
+    let targetID: String
+    let height: CGFloat
+    let state: AppState
+    @Binding var zone: ArrangeTile.DropZone?
+
+    private func zoneFor(_ info: DropInfo) -> ArrangeTile.DropZone {
+        info.location.y > height * 0.5 ? .under : .before
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        let z = zoneFor(info)
+        if zone != z { zone = z }
+        return DropProposal(operation: .move)
+    }
+
+    func dropExited(info: DropInfo) { zone = nil }
+
+    func performDrop(info: DropInfo) -> Bool {
+        let under = zoneFor(info) == .under
+        zone = nil
+        MainActor.assumeIsolated {
+            if let dragged = ReorderState.shared.draggingID {
+                withAnimation(.easeOut(duration: 0.2)) {
+                    state.moveModule(dragged: dragged, onto: targetID, under: under)
+                }
+            }
+            ReorderState.shared.draggingID = nil
+        }
+        return true
     }
 }

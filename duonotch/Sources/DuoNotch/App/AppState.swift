@@ -146,17 +146,53 @@ final class AppState: ObservableObject {
         panelModules[i].cardSize = next
     }
 
-    /// The long row's columns: small and medium cards stack two to a column.
+    /// Cards grouped into stacks (one column each). A card joins the stack
+    /// before it when you've put it there; otherwise small and medium cards
+    /// pair up automatically.
     var rowColumns: [[PanelModuleConfig]] {
         var columns: [[PanelModuleConfig]] = []
         for config in shownPanelModules {
-            if config.cardSize.stacks, let last = columns.last, last.count == 1, last[0].cardSize.stacks {
-                columns[columns.count - 1].append(config)
-            } else {
-                columns.append([config])
+            guard let last = columns.last else { columns.append([config]); continue }
+            let stack: Bool
+            switch config.stackUnder {
+            case .some(let explicit): stack = explicit
+            case .none:
+                stack = config.cardSize.stacks && last.count == 1
+                    && last[0].cardSize.stacks && last[0].stackUnder == nil
             }
+            if stack { columns[columns.count - 1].append(config) } else { columns.append([config]) }
         }
         return columns
+    }
+
+    /// Put a card in its own column, or under the card before it.
+    func toggleStack(_ module: PanelModule) {
+        guard let i = panelModules.firstIndex(where: { $0.module == module }) else { return }
+        let stacked = rowColumns.contains { $0.count > 1 && $0.dropFirst().contains { $0.module == module } }
+        panelModules[i].stackUnder = !stacked
+    }
+
+    func isStacked(_ module: PanelModule) -> Bool {
+        rowColumns.contains { $0.count > 1 && $0.dropFirst().contains { $0.module == module } }
+    }
+
+    /// Drag-and-drop in Arrange: before the target in its own column, or
+    /// directly under it in the same column.
+    func moveModule(dragged: String, onto target: String, under: Bool) {
+        guard dragged != target,
+              let from = panelModules.firstIndex(where: { $0.module.rawValue == dragged }) else { return }
+        var modules = panelModules
+        var item = modules.remove(at: from)
+        guard let to = modules.firstIndex(where: { $0.module.rawValue == target }) else { return }
+        if under {
+            item.stackUnder = true
+            modules.insert(item, at: to + 1)
+        } else {
+            item.stackUnder = false
+            // The target now follows the dragged card; keep the target's own choice.
+            modules.insert(item, at: to)
+        }
+        panelModules = modules
     }
 
     static func columnWidth(_ column: [PanelModuleConfig]) -> CGFloat {
@@ -209,7 +245,29 @@ final class AppState: ObservableObject {
         didSet { defaults.set(openForApprovals, forKey: Keys.openForApprovals) }
     }
     @Published var placement: NotchPlacement {
-        didSet { defaults.set(placement.rawValue, forKey: Keys.placement) }
+        didSet {
+            defaults.set(placement.rawValue, forKey: Keys.placement)
+            guard placement != oldValue, !demoMode else { return }
+            // Each position keeps its own items; the first visit starts
+            // from a copy of the position you came from.
+            if let saved = Self.loadNotchItems(for: placement) {
+                notchItems = saved
+            } else {
+                persistNotchItems()
+            }
+            notchItemSpacing = Self.loadSpacing(for: placement) ?? notchItemSpacing
+            reconcileNotchItems()
+        }
+    }
+
+    /// Gap between items in the closed notch (per position).
+    @Published var notchItemSpacing: Double = 8 {
+        didSet { defaults.set(notchItemSpacing, forKey: "notchSpacing.\(placement.rawValue)") }
+    }
+
+    /// Named layouts of the closed notch you can switch between.
+    @Published var notchPresets: [NotchPreset] = [] {
+        didSet { saveCodable(notchPresets, "notchPresets.v1") }
     }
     /// Top-left corner of the floating panel, in screen coordinates.
     @Published var floatingOrigin: CGPoint? {
@@ -277,7 +335,10 @@ final class AppState: ObservableObject {
             || ProcessInfo.processInfo.environment["DUONOTCH_DEMO"] == "1"
         accounts = Self.loadPersistedAccounts()
         projects = Self.loadPersistedProjects()
-        notchItems = Self.loadPersistedNotchItems()
+        let startPlacement = NotchPlacement(rawValue: stored.string(forKey: Keys.placement) ?? "") ?? .top
+        notchItems = Self.loadNotchItems(for: startPlacement) ?? Self.loadPersistedNotchItems()
+        notchPresets = Self.loadCodable([NotchPreset].self, "notchPresets.v1") ?? []
+        notchItemSpacing = Self.loadSpacing(for: startPlacement) ?? 8
         var modules = Self.loadCodable([PanelModuleConfig].self, Keys.panelModules) ?? PanelModuleConfig.defaults
         for d in PanelModuleConfig.defaults where !modules.contains(where: { $0.module == d.module }) { modules.append(d) }
         panelModules = modules
@@ -329,7 +390,7 @@ final class AppState: ObservableObject {
 
         accounts = Self.loadPersistedAccounts()
         projects = Self.loadPersistedProjects()
-        notchItems = Self.loadPersistedNotchItems()
+        notchItems = Self.loadNotchItems(for: placement) ?? Self.loadPersistedNotchItems()
         mergeDiscoveredAccounts()
         reconcileNotchItems()
         startServer()
@@ -749,7 +810,7 @@ final class AppState: ObservableObject {
             case .link(let id): return LinkStore.shared.links.contains { $0.id == id }
             case .clock(let id): return ClockStore.shared.clocks.contains { $0.id == id }
             case .ticker(let id): return MarketStore.shared.tickers.contains { $0.id == id }
-            case .weather, .logo: return true
+            case .weather, .logo, .spacer, .divider: return true
             case .clipboard, .chats, .media, .files: return true
             }
         }
@@ -851,7 +912,49 @@ final class AppState: ObservableObject {
         guard !demoMode else { return }
         if let data = try? JSONEncoder().encode(notchItems) {
             defaults.set(data, forKey: Keys.notchItems)
+            defaults.set(data, forKey: "\(Keys.notchItems).\(placement.rawValue)")
         }
+    }
+
+    private static func loadNotchItems(for placement: NotchPlacement) -> [NotchItem]? {
+        guard let data = UserDefaults.standard.data(forKey: "\(Keys.notchItems).\(placement.rawValue)") else { return nil }
+        return try? JSONDecoder().decode([NotchItem].self, from: data)
+    }
+
+    private static func loadSpacing(for placement: NotchPlacement) -> Double? {
+        UserDefaults.standard.object(forKey: "notchSpacing.\(placement.rawValue)") as? Double
+    }
+
+    // MARK: Separators and presets
+
+    func addSeparator(divider: Bool) {
+        let kind: NotchItemKind = divider ? .divider(UUID()) : .spacer(UUID())
+        notchItems.append(NotchItem(kind: kind, side: .right, enabled: true, colorHex: "#E6E6E6"))
+    }
+
+    func removeNotchItem(_ item: NotchItem) {
+        notchItems.removeAll { $0.id == item.id }
+    }
+
+    func savePreset(named name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        let preset = NotchPreset(name: trimmed.isEmpty ? "Preset \(notchPresets.count + 1)" : trimmed,
+                                 items: notchItems, spacing: notchItemSpacing)
+        if let i = notchPresets.firstIndex(where: { $0.name == preset.name }) {
+            notchPresets[i] = preset
+        } else {
+            notchPresets.append(preset)
+        }
+    }
+
+    func applyPreset(_ preset: NotchPreset) {
+        notchItems = preset.items
+        notchItemSpacing = preset.spacing
+        reconcileNotchItems()
+    }
+
+    func deletePreset(_ preset: NotchPreset) {
+        notchPresets.removeAll { $0.id == preset.id }
     }
 
     private func saveCodable<T: Encodable>(_ value: T, _ key: String) {

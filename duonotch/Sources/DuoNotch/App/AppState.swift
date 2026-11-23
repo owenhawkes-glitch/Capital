@@ -541,8 +541,7 @@ final class AppState: ObservableObject {
     /// Opens the Settings scene even when the menu bar icon is hidden
     /// behind the hardware notch.
     static func openSettings() {
-        NSApp.activate(ignoringOtherApps: true)
-        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        SettingsWindow.shared.show(state: AppState.shared)
     }
 
     // MARK: - Menu bar

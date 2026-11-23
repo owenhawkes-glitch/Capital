@@ -17,11 +17,6 @@ struct DuoNotchApp: App {
                 Image(systemName: "circle.lefthalf.filled")
             }
         }
-
-        Settings {
-            SettingsView()
-                .environmentObject(state)
-        }
     }
 }
 
@@ -38,7 +33,7 @@ private struct MenuContent: View {
         Divider()
         Button("Refresh now") { Task { await state.refreshAll() } }
         Button(state.pinnedOpen ? "Unpin notch" : "Pin notch open") { state.pinnedOpen.toggle() }
-        SettingsLink { Text("Settings…") }
+        Button("Settings…") { AppState.openSettings() }
             .keyboardShortcut(",")
         Divider()
         Button("Quit DuoNotch") { NSApplication.shared.terminate(nil) }

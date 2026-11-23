@@ -812,6 +812,17 @@ final class AppState: ObservableObject {
         notchItems = items
     }
 
+    /// Whether an item is switched on in the closed notch.
+    func notchItemEnabled(_ kind: NotchItemKind) -> Bool {
+        notchItems.first { $0.kind == kind }?.enabled ?? false
+    }
+
+    func setNotchItem(_ kind: NotchItemKind, enabled: Bool) {
+        reconcileNotchItems()
+        guard let i = notchItems.firstIndex(where: { $0.kind == kind }) else { return }
+        notchItems[i].enabled = enabled
+    }
+
     private static func loadPersistedNotchItems() -> [NotchItem] {
         guard let data = UserDefaults.standard.data(forKey: Keys.notchItems),
               let decoded = try? JSONDecoder().decode([NotchItem].self, from: data) else { return [] }

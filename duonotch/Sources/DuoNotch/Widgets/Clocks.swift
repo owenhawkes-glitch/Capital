@@ -20,6 +20,15 @@ struct ClockConfig: Identifiable, Codable, Equatable {
     var timeZoneID: String
     var style: ClockStyle
     var showSeconds = false
+    /// Style in the closed notch; nil = same as the panel.
+    var notchStyle: ClockStyle?
+
+    /// This clock as it should look in the closed notch.
+    var forNotch: ClockConfig {
+        var copy = self
+        copy.style = notchStyle ?? style
+        return copy
+    }
 
     var timeZone: TimeZone { TimeZone(identifier: timeZoneID) ?? .current }
     var isLocal: Bool { timeZoneID == TimeZone.current.identifier }
@@ -72,6 +81,8 @@ struct ClockFace: View {
     let clock: ClockConfig
     var size: CGFloat = 18
     var color: Color = .white
+    /// Narrow vertical strips: stack flip cards and put seconds underneath.
+    var stacked = false
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: clock.showSeconds || clock.style == .analog ? 1 : 5)) { context in
@@ -83,7 +94,8 @@ struct ClockFace: View {
             case .digital12, .digital24:
                 digital(parts)
             case .flip:
-                FlipTime(hour: clock.style == .flip ? parts.hour : parts.hour, minute: parts.minute, size: size, color: color)
+                FlipTime(hour: parts.hour, minute: parts.minute, second: clock.showSeconds ? parts.second : nil,
+                         size: size, color: color, stacked: stacked)
             }
         }
     }
@@ -91,11 +103,20 @@ struct ClockFace: View {
     private func digital(_ p: (hour: Int, minute: Int, second: Int)) -> some View {
         let h = clock.style == .digital12 ? (p.hour % 12 == 0 ? 12 : p.hour % 12) : p.hour
         let main = clock.style == .digital12 ? "\(h):\(String(format: "%02d", p.minute))" : String(format: "%02d:%02d", h, p.minute)
+        let seconds = String(format: "%02d", p.second)
         return HStack(alignment: .firstTextBaseline, spacing: size * 0.12) {
-            Text(main + (clock.showSeconds ? String(format: ":%02d", p.second) : ""))
-                .font(.system(size: size * 0.72, weight: .semibold, design: .rounded))
-                .monospacedDigit()
-                .contentTransition(.numericText())
+            VStack(spacing: 0) {
+                Text(main + (clock.showSeconds && !stacked ? ":" + seconds : ""))
+                    .font(.system(size: size * 0.72, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+                if clock.showSeconds && stacked {
+                    Text(seconds)
+                        .font(.system(size: size * 0.5, weight: .medium, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                }
+            }
             if clock.style == .digital12 {
                 Text(p.hour < 12 ? "AM" : "PM")
                     .font(.system(size: size * 0.36, weight: .bold, design: .rounded))
@@ -148,13 +169,19 @@ struct AnalogFace: View {
 struct FlipTime: View {
     let hour: Int
     let minute: Int
+    var second: Int? = nil
     let size: CGFloat
     var color: Color = .white
+    var stacked = false
 
     var body: some View {
-        HStack(spacing: size * 0.12) {
+        let layout = stacked ? AnyLayout(VStackLayout(spacing: size * 0.1)) : AnyLayout(HStackLayout(spacing: size * 0.12))
+        layout {
             FlipCard(text: String(format: "%02d", hour), size: size, color: color)
             FlipCard(text: String(format: "%02d", minute), size: size, color: color)
+            if let second {
+                FlipCard(text: String(format: "%02d", second), size: size * 0.8, color: color.opacity(0.85))
+            }
         }
     }
 }

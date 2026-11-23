@@ -40,7 +40,8 @@ enum SettingsPage: String, CaseIterable, Identifiable {
 /// Sidebar settings: every page stays visible however many there are.
 struct SettingsView: View {
     @EnvironmentObject private var state: AppState
-    @State private var page: SettingsPage = .notch
+    @State private var page: SettingsPage =
+        SettingsPage(rawValue: ProcessInfo.processInfo.environment["DUONOTCH_SETTINGS_PAGE"] ?? "") ?? .notch
 
     var body: some View {
         HStack(spacing: 0) {

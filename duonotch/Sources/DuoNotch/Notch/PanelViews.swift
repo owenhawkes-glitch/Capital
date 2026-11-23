@@ -679,23 +679,24 @@ struct WindowMirrorCard: View {
                 HStack(spacing: 6) {
                     Text("Live").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
                     ForEach(WindowMirror.favourites, id: \.id) { fav in
-                        Button(fav.name) { mirror.targetBundleID = fav.id }
+                        Button(fav.name) { mirror.pick(bundleID: fav.id) }
                             .buttonStyle(.plain)
                             .font(.system(size: 9, weight: .semibold))
                             .padding(.horizontal, 7).padding(.vertical, 2)
-                            .background(Capsule().fill(mirror.targetBundleID == fav.id ? Color.white.opacity(0.2) : Color.white.opacity(0.06)))
+                            .background(Capsule().fill(mirror.isLive && mirror.targetBundleID == fav.id ? Color.white.opacity(0.22) : Color.white.opacity(0.06)))
+                            .help("Pick a \(fav.name) window to show here")
                     }
+                    Button("Other…") { mirror.pick(bundleID: nil) }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
                     Spacer()
-                    Menu {
-                        ForEach(mirror.candidates) { c in
-                            Button(c.appName) { mirror.targetBundleID = c.bundleID }
-                        }
-                    } label: {
-                        Text(WindowMirror.favourites.contains { $0.id == mirror.targetBundleID } ? "Other…" : mirror.targetName)
+                    if mirror.isLive {
+                        Button("Stop") { mirror.stop() }
+                            .buttonStyle(.plain)
                             .font(.system(size: 9))
+                            .foregroundStyle(.secondary)
                     }
-                    .menuStyle(.borderlessButton)
-                    .fixedSize()
                 }
                 ZStack {
                     RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.05))
@@ -705,18 +706,14 @@ struct WindowMirrorCard: View {
                             .interpolation(.high)
                             .aspectRatio(contentMode: .fit)
                             .clipShape(RoundedRectangle(cornerRadius: 8))
-                            .onTapGesture { mirror.bringTargetToFront() }
-                            .help("Click to switch to \(mirror.targetName)")
-                    } else if mirror.needsPermission {
-                        VStack(spacing: 6) {
-                            Text("Allow Screen Recording so DuoNotch can show another app's window.")
-                                .font(.system(size: 10)).multilineTextAlignment(.center)
-                            Button("Open Privacy settings") { mirror.openPrivacySettings() }
-                                .font(.system(size: 10))
-                        }
-                        .padding(10)
+                            .onTapGesture { mirror.bringSourceToFront() }
+                            .help("Click to switch to \(mirror.sourceName ?? "it")")
                     } else {
-                        Text(mirror.status).font(.system(size: 10)).foregroundStyle(.secondary)
+                        Text(mirror.status)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(10)
                     }
                 }
                 .aspectRatio(16 / 9, contentMode: .fit)

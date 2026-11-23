@@ -87,6 +87,7 @@ private struct ThemeSwatch: View {
 
 /// Settings → Widgets: clocks, weather, markets, links and the live window.
 struct WidgetsSettings: View {
+    @EnvironmentObject private var state: AppState
     @ObservedObject private var clocks = ClockStore.shared
     @ObservedObject private var weather = WeatherStore.shared
     @ObservedObject private var markets = MarketStore.shared
@@ -119,6 +120,21 @@ struct WidgetsSettings: View {
                         ClockFace(clock: clock, size: 18).frame(minWidth: 40)
                         Button { clocks.remove(clock) } label: { Image(systemName: "minus.circle") }.buttonStyle(.plain)
                     }
+                    HStack {
+                        Toggle("Show in the closed notch", isOn: Binding(
+                            get: { state.notchItemEnabled(.clock(clock.id)) },
+                            set: { state.setNotchItem(.clock(clock.id), enabled: $0) }))
+                            .toggleStyle(.checkbox)
+                        Picker("Notch style", selection: $clock.notchStyle) {
+                            Text("Same as panel").tag(ClockStyle?.none)
+                            ForEach(ClockStyle.allCases) { Text($0.name).tag(Optional($0)) }
+                        }
+                        .frame(width: 260)
+                        Spacer()
+                        ClockFace(clock: clock.forNotch, size: 16).frame(minWidth: 40)
+                    }
+                    .font(.caption)
+                    .padding(.leading, 4)
                 }
                 Menu("Add clock") {
                     Button("Local time") { clocks.add(label: "", zone: TimeZone.current.identifier, style: .analog) }
@@ -128,7 +144,7 @@ struct WidgetsSettings: View {
                     }
                 }
                 .fixedSize()
-                Text("Each clock is also a notch item. Switch it on in Settings → Notch.").font(.caption).foregroundStyle(.secondary)
+                Text("Each clock can show in the panel and in the closed notch, in different styles (e.g. a flip clock in the notch). Position and colour it in Notch items.").font(.caption).foregroundStyle(.secondary)
             }
 
             Section("Weather") {
@@ -138,6 +154,9 @@ struct WidgetsSettings: View {
                     Button("Set") { if !cityDraft.isEmpty { weather.city = cityDraft } }
                     Toggle("°F", isOn: $weather.fahrenheit).toggleStyle(.checkbox)
                 }
+                Toggle("Show in the closed notch (icon and temperature)", isOn: Binding(
+                    get: { state.notchItemEnabled(.weather) },
+                    set: { state.setNotchItem(.weather, enabled: $0) }))
                 Text(weather.error ?? "Showing \(weather.resolvedName.isEmpty ? weather.city : weather.resolvedName). From Open-Meteo, no account or location permission needed.")
                     .font(.caption).foregroundStyle(.secondary)
             }
@@ -203,23 +222,10 @@ struct WidgetsSettings: View {
             }
 
             Section("Live window") {
-                HStack {
-                    Text("Mirror")
-                    Picker("", selection: $mirror.targetBundleID) {
-                        Text("Spotify").tag("com.spotify.client")
-                        Text("Parsec").tag("tv.parsec.www")
-                        ForEach(mirror.candidates.filter { !["com.spotify.client", "tv.parsec.www"].contains($0.bundleID) }) { c in
-                            Text(c.appName).tag(c.bundleID)
-                        }
-                    }
-                    .labelsHidden()
-                    Button("Refresh list") { Task { await mirror.refreshCandidates() } }
-                }
-                Text("Turn on \"Live window\" in Settings → Panel. It shows that app's window live, e.g. a Spotify video podcast or a Parsec session, and needs Screen Recording permission. The app's window must be open (it can be behind others, not minimised). Rebuilding DuoNotch can make macOS ask for the permission again.")
+                Text("Turn on \"Live window\" in Panel layout, then click Spotify, Parsec or Other… in that section and pick the window in macOS's picker. Using the system picker means DuoNotch needs no Screen Recording permission and only ever sees the window you picked. macOS forgets the pick when DuoNotch quits, so you pick again after a restart.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
-        .task { await mirror.refreshCandidates() }
     }
 }

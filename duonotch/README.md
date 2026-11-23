@@ -262,7 +262,9 @@ Settings → **Widgets**. Each one is a panel section (Settings → Panel or
 Arrange) and, where it makes sense, a notch item (Settings → Notch).
 
 - **Clocks**: local and world clocks, each Simple (hands only, no numbers),
-  Digital 12-hour, Digital 24-hour or Flip, with optional seconds
+  Digital 12-hour, Digital 24-hour or Flip, with optional seconds. Each can
+  also show in the closed notch, in its own style (e.g. flip in the notch);
+  on side edges the faces stack to fit
 - **Weather**: any city, °C or °F, current, next 12 hours and 5 days, from
   Open-Meteo (no account, no location permission)
 - **Markets**: FX, futures, indices, stocks and crypto from Yahoo Finance's
@@ -270,9 +272,11 @@ Arrange) and, where it makes sense, a notch item (Settings → Notch).
   minute, with a sparkline and % change. Click to open the TradingView chart
 - **Quick links**: any URL, with a one-click set of Google links
 - **Live window**: a live mirror of another app's window, e.g. a Spotify
-  video podcast or a Parsec session (one-click buttons for both, "Other…"
-  for any app). Needs Screen Recording permission; the window must be open
-  (behind others is fine, minimised isn't). Click it to switch to the app
+  video podcast or a Parsec session. Click Spotify, Parsec or Other… and
+  pick the window in macOS's own picker. Because it uses the system picker,
+  DuoNotch needs no Screen Recording permission and only sees the window
+  you chose; macOS forgets the choice when DuoNotch quits. Click the view
+  to switch to the app
 
 ## Appearance
 

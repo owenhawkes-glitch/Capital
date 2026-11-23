@@ -34,13 +34,13 @@ struct NotchItem: Codable, Identifiable, Equatable {
     var width: CGFloat {
         switch kind {
         case .clock(let id):
-            guard let clock = ClockStore.shared.clocks.first(where: { $0.id == id }) else { return 0 }
+            guard let clock = ClockStore.shared.clocks.first(where: { $0.id == id })?.forNotch else { return 0 }
             let label: CGFloat = clock.isLocal && clock.label.isEmpty ? 0 : 26
             switch clock.style {
             case .analog: return 20 + label
             case .digital24: return 44 + label + (clock.showSeconds ? 20 : 0)
             case .digital12: return 58 + label + (clock.showSeconds ? 20 : 0)
-            case .flip: return 44 + label
+            case .flip: return 44 + label + (clock.showSeconds ? 18 : 0)
             }
         case .ticker: return 118
         case .weather: return 46
@@ -57,7 +57,15 @@ struct NotchItem: Codable, Identifiable, Equatable {
     @MainActor
     var height: CGFloat {
         switch kind {
-        case .clock, .weather: return 34
+        case .clock(let id):
+            guard let clock = ClockStore.shared.clocks.first(where: { $0.id == id })?.forNotch else { return 0 }
+            let label: CGFloat = clock.isLocal && clock.label.isEmpty ? 0 : 12
+            switch clock.style {
+            case .flip: return 34 + label + (clock.showSeconds ? 14 : 0)
+            case .analog: return 20 + label
+            default: return 18 + label + (clock.showSeconds ? 10 : 0)
+            }
+        case .weather: return 34
         case .ticker: return 40
         case .logo: return 22
         case .account: return 34
@@ -174,8 +182,8 @@ struct NotchItemView: View {
                 }
             }
         case .clock(let id):
-            if let clock = clocks.clocks.first(where: { $0.id == id }) {
-                let face = ClockFace(clock: clock, size: px(vertical ? 16 : 17), color: .white)
+            if let clock = clocks.clocks.first(where: { $0.id == id })?.forNotch {
+                let face = ClockFace(clock: clock, size: px(vertical ? 15 : 17), color: .white, stacked: vertical)
                 let layout = vertical ? AnyLayout(VStackLayout(spacing: px(2))) : AnyLayout(HStackLayout(spacing: px(4)))
                 layout {
                     if !(clock.isLocal && clock.label.isEmpty) {

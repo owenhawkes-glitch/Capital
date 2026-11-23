@@ -160,6 +160,7 @@ struct NotchLayoutSettings: View {
         case .clock(let id): return ClockStore.shared.clocks.first { $0.id == id }.map { "Clock: \($0.label.isEmpty ? ($0.isLocal ? "Local" : $0.timeZoneID) : $0.label) (\($0.style.name))" }
         case .ticker(let id): return MarketStore.shared.tickers.first { $0.id == id }.map { "Ticker: \($0.name)" }
         case .weather: return "Weather"
+        case .caffeine: return "Keep awake (caffeinate)"
         case .spacer: return "Spacer (empty gap)"
         case .divider: return "Divider (thin line)"
         case .logo: return "Notch icon (choose it in Appearance)"
@@ -193,6 +194,8 @@ struct NotchLayoutSettings: View {
             symbolRing("chart.line.uptrend.xyaxis", item.colorHex)
         case .weather:
             Image(systemName: "cloud.sun.fill").symbolRenderingMode(.multicolor)
+        case .caffeine:
+            Image(systemName: "cup.and.saucer.fill").foregroundStyle(.orange)
         case .spacer:
             Image(systemName: "arrow.left.and.right").foregroundStyle(.secondary)
         case .divider:

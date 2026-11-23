@@ -83,6 +83,7 @@ enum DemoData {
             case .link, .ticker: item.enabled = true; item.side = .right
             case .clock, .weather, .logo: item.enabled = true; item.side = .left
             case .spacer, .divider: break
+            case .caffeine: item.enabled = true; item.side = .left
             case .account: break
             }
             return item

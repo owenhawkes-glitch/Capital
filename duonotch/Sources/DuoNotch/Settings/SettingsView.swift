@@ -315,6 +315,10 @@ private struct BehaviourSettings: View {
                 Toggle("Show percentages in the menu bar", isOn: $state.showMenuBarText)
             }
 
+            Section("Keep awake") {
+                CaffeineSettings()
+            }
+
             Section("App") {
                 Toggle("Launch at login", isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, enabled in
@@ -358,5 +362,24 @@ private struct AboutSettings: View {
             Spacer()
         }
         .padding()
+    }
+}
+
+private struct CaffeineSettings: View {
+    @ObservedObject private var caffeine = Caffeine.shared
+
+    var body: some View {
+        Text(caffeine.description).font(.callout)
+        HStack {
+            Button("On") { caffeine.set(.on(until: nil)) }
+            Button("1 h") { caffeine.keepAwake(hours: 1) }
+            Button("2 h") { caffeine.keepAwake(hours: 2) }
+            Button("4 h") { caffeine.keepAwake(hours: 4) }
+            Button("While chats run") { caffeine.set(.whileChatsRun) }
+            Button("Off") { caffeine.set(.off) }
+        }
+        Toggle("Keep the screen on too", isOn: $caffeine.keepDisplayOn)
+        Text("Stops your Mac idling to sleep so long Claude Code runs keep going. Closing the lid on battery still sleeps the Mac; macOS doesn't let apps prevent that.")
+            .font(.caption).foregroundStyle(.secondary)
     }
 }

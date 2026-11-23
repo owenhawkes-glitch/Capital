@@ -272,6 +272,16 @@ Settings → **Places** (or drop files onto the Places section) keeps files
 and folders one click away: copy the path, show it in Finder, open a
 terminal there, or double-click to open it.
 
+## Keep awake (caffeinate)
+
+A coffee-cup item in the closed notch keeps the Mac from idling to sleep,
+so long Claude Code runs keep going. Click it to switch on/off (it turns
+amber and steams while active). Right-click the notch → **Keep awake** for
+1/2/4/8 hours, **while Claude chats are running** (sleeps again once
+they finish), or to keep the screen on too. It uses a standard macOS power
+assertion, released automatically if DuoNotch quits. Closing the lid on
+battery still sleeps the Mac.
+
 ## Arrange the open notch
 
 Click **Arrange** in the open notch's top bar. Each section gets a dashed

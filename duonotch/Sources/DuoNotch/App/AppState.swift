@@ -682,6 +682,7 @@ final class AppState: ObservableObject {
     }
 
     private func upsert(_ session: ClaudeSession) {
+        defer { Caffeine.shared.update() }
         if let index = sessions.firstIndex(where: { $0.id == session.id }) {
             sessions[index] = session
         } else {
@@ -844,7 +845,7 @@ final class AppState: ObservableObject {
             case .link(let id): return LinkStore.shared.links.contains { $0.id == id }
             case .clock(let id): return ClockStore.shared.clocks.contains { $0.id == id }
             case .ticker(let id): return MarketStore.shared.tickers.contains { $0.id == id }
-            case .weather, .logo, .spacer, .divider: return true
+            case .weather, .logo, .spacer, .divider, .caffeine: return true
             case .clipboard, .chats, .media, .files: return true
             }
         }
@@ -879,6 +880,9 @@ final class AppState: ObservableObject {
         for (index, ticker) in MarketStore.shared.tickers.enumerated() where !has(.ticker(ticker.id)) {
             items.append(NotchItem(kind: .ticker(ticker.id), side: .right, enabled: false,
                                    colorHex: AccountPalette.preset(at: index + 1).hex))
+        }
+        if !has(.caffeine) {
+            items.append(NotchItem(kind: .caffeine, side: .left, enabled: !notchItems.isEmpty, colorHex: "#F0883E"))
         }
         if !has(.weather) {
             items.append(NotchItem(kind: .weather, side: .left, enabled: false, colorHex: AccountPalette.presets[6].hex))

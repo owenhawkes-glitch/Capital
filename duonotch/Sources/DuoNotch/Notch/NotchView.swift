@@ -123,6 +123,17 @@ private struct NotchContextMenu: View {
                 }
             }
         }
+        Menu(Caffeine.shared.isOn ? "Keep awake ☕︎ (on)" : "Keep awake") {
+            Button("Until I switch it off") { Caffeine.shared.set(.on(until: nil)) }
+            Button("For 1 hour") { Caffeine.shared.keepAwake(hours: 1) }
+            Button("For 2 hours") { Caffeine.shared.keepAwake(hours: 2) }
+            Button("For 4 hours") { Caffeine.shared.keepAwake(hours: 4) }
+            Button("For 8 hours") { Caffeine.shared.keepAwake(hours: 8) }
+            Button("While Claude chats are running") { Caffeine.shared.set(.whileChatsRun) }
+            Divider()
+            Button((Caffeine.shared.keepDisplayOn ? "✓ " : "") + "Keep the screen on too") { Caffeine.shared.keepDisplayOn.toggle() }
+            Button("Off") { Caffeine.shared.set(.off) }.disabled(!Caffeine.shared.isOn)
+        }
         if !state.notchPresets.isEmpty {
             Menu("Layout preset") {
                 ForEach(state.notchPresets) { preset in

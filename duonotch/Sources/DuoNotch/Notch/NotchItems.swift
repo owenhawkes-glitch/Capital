@@ -16,6 +16,7 @@ enum NotchItemKind: Codable, Hashable {
     case logo
     case spacer(UUID)
     case divider(UUID)
+    case caffeine
 
     var isSeparator: Bool {
         switch self {
@@ -59,6 +60,7 @@ struct NotchItem: Codable, Identifiable, Equatable {
         case .logo: return 20
         case .spacer: return 12
         case .divider: return 9
+        case .caffeine: return 20
         case .account: return 62
         case .app: return 22
         case .clipboard, .chats, .files: return 40
@@ -84,6 +86,7 @@ struct NotchItem: Codable, Identifiable, Equatable {
         case .logo: return 22
         case .spacer: return 10
         case .divider: return 9
+        case .caffeine: return 22
         case .account: return 34
         case .app: return 24
         case .clipboard, .chats, .files: return 32
@@ -125,6 +128,7 @@ struct NotchItemView: View {
     @ObservedObject private var weather = WeatherStore.shared
     @ObservedObject private var markets = MarketStore.shared
     @ObservedObject private var look = AppearanceStore.shared
+    @ObservedObject private var caffeine = Caffeine.shared
     let item: NotchItem
     var vertical = false
     /// Real layout scale (not a zoom), so icons and text stay sharp.
@@ -282,6 +286,18 @@ struct NotchItemView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+        case .caffeine:
+            let colour = caffeine.isOn ? Color.orange : Color.white.opacity(0.45)
+            Button { caffeine.toggle() } label: {
+                Image(systemName: caffeine.holding ? "cup.and.heat.waves.fill" : "cup.and.saucer.fill")
+                    .font(.system(size: px(12), weight: .semibold))
+                    .foregroundStyle(colour)
+                    .animatedSymbol(.breathe, active: caffeine.holding)
+                    .frame(width: px(18), height: px(18))
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(caffeine.description + "\nClick to switch; right-click the notch for timers")
         case .spacer:
             Color.clear
                 .frame(width: vertical ? px(10) : px(12), height: vertical ? px(10) : px(12))

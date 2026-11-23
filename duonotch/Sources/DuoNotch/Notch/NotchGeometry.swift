@@ -70,7 +70,13 @@ enum NotchMetrics {
     static let sideWidth: CGFloat = 44
     static let floatingHeight: CGFloat = 30
 
-    static func collapsedSize(_ g: NotchGeometry, placement: NotchPlacement, strip: NotchStrip) -> CGSize {
+    static func collapsedSize(_ g: NotchGeometry, placement: NotchPlacement, strip: NotchStrip, scale: CGFloat) -> CGSize {
+        let base = unscaledCollapsedSize(g, placement: placement, strip: strip)
+        guard placement != .top else { return base }
+        return CGSize(width: (base.width * scale).rounded(), height: (base.height * scale).rounded())
+    }
+
+    static func unscaledCollapsedSize(_ g: NotchGeometry, placement: NotchPlacement, strip: NotchStrip) -> CGSize {
         let items = strip.all
         switch placement {
         case .top:
@@ -85,7 +91,7 @@ enum NotchMetrics {
     }
 
     static func expandedSize(_ g: NotchGeometry, placement: NotchPlacement, strip: NotchStrip, width: CGFloat, contentHeight: CGFloat) -> CGSize {
-        let collapsed = collapsedSize(g, placement: placement, strip: strip)
+        let collapsed = unscaledCollapsedSize(g, placement: placement, strip: strip)
         let top: CGFloat = placement == .top ? g.notchHeight : 0
         return CGSize(width: max(width, placement == .top ? collapsed.width : 0),
                       height: top + contentHeight)

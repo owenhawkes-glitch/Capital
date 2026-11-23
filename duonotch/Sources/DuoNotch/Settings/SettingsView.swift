@@ -223,6 +223,17 @@ private struct BehaviourSettings: View {
                             .controlSize(.small)
                     }
                 }
+                Picker("Size on edges and floating", selection: $state.notchScale) {
+                    Text("Small").tag(0.85)
+                    Text("Normal").tag(1.0)
+                    Text("Large").tag(1.35)
+                    Text("Extra large").tag(1.7)
+                }
+                .disabled(state.placement == .top)
+                if state.placement == .top {
+                    Text("At the top the notch matches the menu bar height. Size applies to the edge and floating positions.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
                 Toggle("Open for 5 seconds when a chat finishes", isOn: $state.peekOnFinish)
                 Toggle("Open automatically when Claude asks for approval", isOn: $state.openForApprovals)
                 Text("With both off, the notch only opens when you hover it. A pulsing amber dot shows when a chat is waiting on you.")

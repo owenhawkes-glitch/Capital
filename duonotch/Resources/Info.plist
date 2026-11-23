@@ -26,6 +26,17 @@
     <true/>
     <key>NSAppleEventsUsageDescription</key>
     <string>DuoNotch brings the terminal tab of a Claude Code session to the front when you click it in the notch.</string>
+    <key>UTExportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <key>UTTypeIdentifier</key>
+            <string>com.hawkes.duonotch.reorder</string>
+            <key>UTTypeDescription</key>
+            <string>DuoNotch item being reordered</string>
+            <key>UTTypeConformsTo</key>
+            <array><string>public.data</string></array>
+        </dict>
+    </array>
     <key>NSHumanReadableCopyright</key>
     <string>MIT</string>
 </dict>

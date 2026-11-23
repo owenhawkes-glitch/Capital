@@ -30,7 +30,7 @@ struct NotchItem: Codable, Identifiable, Equatable {
         case .account: return 62
         case .app: return 22
         case .clipboard, .chats, .files: return 40
-        case .media: return 22
+        case .media: return 96
         }
     }
 
@@ -74,6 +74,15 @@ struct NotchItemView: View {
     var vertical = false
 
     var body: some View {
+        if case .media = item.kind {
+            content
+        } else {
+            content.reorderSource(id: item.id.uuidString)
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
         switch item.kind {
         case .account(let id):
             if let account = state.accounts.first(where: { $0.id == id }) {
@@ -110,6 +119,7 @@ struct NotchItemView: View {
             .help("\(running) running, \(waiting) waiting on you")
         case .media:
             let playing = media.track?.isPlaying == true
+            HStack(spacing: 6) {
             Button { media.playPause() } label: {
                 ZStack {
                     Circle().stroke(Color(hex: item.colorHex).opacity(playing ? 1 : 0.35), lineWidth: 2)
@@ -122,6 +132,13 @@ struct NotchItemView: View {
             }
             .buttonStyle(.plain)
             .help(media.track.map { "\($0.title) · \($0.artist)" } ?? "Play / pause")
+            .reorderSource(id: item.id.uuidString)
+            if !vertical {
+                VolumeSlider(value: media.volume ?? 50, color: Color(hex: item.colorHex)) { media.setVolume($0) }
+                    .frame(width: 66, height: 14)
+                    .onAppear { media.refresh() }
+            }
+            }
         case .files:
             Button { state.show(tab: .files) } label: {
                 badge(symbol: "tray.full", count: shelf.files.count,
@@ -162,5 +179,32 @@ struct NotchItemView: View {
                 .foregroundStyle(active ? Color.primary : Color.secondary)
         }
         .contentShape(Rectangle())
+    }
+}
+
+/// A small horizontal volume slider for the closed notch.
+struct VolumeSlider: View {
+    var value: Double          // 0…100
+    var color: Color
+    var onChange: (Double) -> Void
+
+    var body: some View {
+        GeometryReader { proxy in
+            let w = proxy.size.width
+            let fraction = min(max(value / 100, 0), 1)
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.white.opacity(0.18)).frame(height: 4)
+                Capsule().fill(color).frame(width: max(w * fraction, 4), height: 4)
+                Circle().fill(Color.white)
+                    .frame(width: 9, height: 9)
+                    .offset(x: max(min(w * fraction - 4.5, w - 9), 0))
+            }
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 0).onChanged { g in
+                onChange(min(max(g.location.x / w, 0), 1) * 100)
+            })
+        }
+        .help("Volume \(Int(value))%")
     }
 }

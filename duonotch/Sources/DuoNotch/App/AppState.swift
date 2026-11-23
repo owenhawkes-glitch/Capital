@@ -78,8 +78,32 @@ final class AppState: ObservableObject {
     @Published var panelWidth: Double {
         didSet { defaults.set(panelWidth, forKey: Keys.panelWidth) }
     }
+    /// Size of the edge and floating notch (1 = normal).
+    @Published var notchScale: Double {
+        didSet { defaults.set(notchScale, forKey: Keys.notchScale) }
+    }
     @Published var floatingOpensOnClick: Bool {
         didSet { defaults.set(floatingOpensOnClick, forKey: Keys.floatingClick) }
+    }
+
+    /// Enabled sections that have something to show right now.
+    var shownPanelModules: [PanelModuleConfig] {
+        panelModules.filter { config in
+            guard config.enabled else { return false }
+            if config.module == .approvals { return !pendingPermissions.isEmpty }
+            if config.module == .projects { return !projects.isEmpty }
+            return true
+        }
+    }
+
+    /// Width of the open panel. Side-by-side grows with its columns, up to
+    /// the screen width; the other layouts use the chosen width.
+    func panelContentWidth(maxWidth: CGFloat) -> CGFloat {
+        guard panelLayout == .row else { return panelWidth }
+        let columns = shownPanelModules
+        let sum = columns.reduce(0) { $0 + ($1.fullWidth ? PanelMetrics.wideColumn : PanelMetrics.narrowColumn) }
+        let total = sum + PanelMetrics.spacing * CGFloat(max(columns.count - 1, 0)) + 2 * PanelMetrics.sidePadding
+        return min(max(total, 420), maxWidth)
     }
 
     func isEnabled(_ module: PanelModule) -> Bool {
@@ -149,6 +173,7 @@ final class AppState: ObservableObject {
         static let panelLayout = "panelLayout"
         static let panelWidth = "panelWidth"
         static let floatingClick = "floatingOpensOnClick"
+        static let notchScale = "notchScale"
         static let menuBarText = "showMenuBarText"
         static let projects = "projects.v1"
         static let terminalApp = "terminalApp"
@@ -192,6 +217,8 @@ final class AppState: ObservableObject {
         let width = stored.double(forKey: Keys.panelWidth)
         panelWidth = width >= 500 ? width : 600
         floatingOpensOnClick = stored.object(forKey: Keys.floatingClick) as? Bool ?? true
+        let scale = stored.double(forKey: Keys.notchScale)
+        notchScale = scale >= 0.8 ? scale : 1
         terminalApp = ProjectLauncher.TerminalApp(rawValue: stored.string(forKey: Keys.terminalApp) ?? "") ?? .terminal
     }
 
@@ -666,6 +693,30 @@ final class AppState: ObservableObject {
             items.append(NotchItem(kind: .chats, side: .left, enabled: false, colorHex: AccountPalette.presets[2].hex))
         }
         if items != notchItems { notchItems = items }
+    }
+
+    /// Drag-to-reorder in the closed notch: the dragged item takes the
+    /// target's place, and its side if it was dropped across the camera.
+    func moveNotchItem(dragged: String, onto target: String) {
+        var items = notchItems
+        guard let from = items.firstIndex(where: { $0.id.uuidString == dragged }),
+              let targetItem = items.first(where: { $0.id.uuidString == target }) else { return }
+        var item = items.remove(at: from)
+        item.side = targetItem.side
+        let to = items.firstIndex(where: { $0.id.uuidString == target }) ?? items.endIndex
+        items.insert(item, at: from <= to ? min(to + 1, items.endIndex) : to)
+        notchItems = items
+    }
+
+    /// Dropped on an empty part of a wing: move to the end of that side.
+    func moveNotchItem(dragged: String, toSide side: NotchSide) {
+        guard let index = notchItems.firstIndex(where: { $0.id.uuidString == dragged }),
+              notchItems[index].side != side else { return }
+        var items = notchItems
+        var item = items.remove(at: index)
+        item.side = side
+        items.append(item)
+        notchItems = items
     }
 
     private static func loadPersistedNotchItems() -> [NotchItem] {

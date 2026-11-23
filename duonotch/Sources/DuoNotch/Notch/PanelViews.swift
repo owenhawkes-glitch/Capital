@@ -11,6 +11,7 @@ private struct ContentHeightKey: PreferenceKey {
 
 struct ExpandedPanel: View {
     @ObservedObject var state: AppState
+    let width: CGFloat
 
     var body: some View {
         VStack(spacing: 8) {
@@ -25,6 +26,16 @@ struct ExpandedPanel: View {
                     }
                 }
                 .padding(.horizontal, 14)
+            } else if state.panelLayout == .row {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .top, spacing: PanelMetrics.spacing) {
+                        ForEach(shown) { config in
+                            ModuleView(state: state, module: config.module, half: true)
+                                .frame(width: config.fullWidth ? PanelMetrics.wideColumn : PanelMetrics.narrowColumn, alignment: .top)
+                        }
+                    }
+                }
+                .frame(width: width - 2 * PanelMetrics.sidePadding)
             } else {
                 VStack(spacing: 10) {
                     ForEach(bentoRows(), id: \.first!.id) { row in
@@ -51,7 +62,7 @@ struct ExpandedPanel: View {
             .padding(.bottom, 6)
         }
         .padding(.top, 6)
-        .frame(width: state.panelWidth)
+        .frame(width: width)
         .fixedSize(horizontal: false, vertical: true)
         .background(GeometryReader { proxy in
             Color.clear.preference(key: ContentHeightKey.self, value: proxy.size.height)
@@ -62,14 +73,7 @@ struct ExpandedPanel: View {
     }
 
     /// Enabled sections that have something to show.
-    private var shown: [PanelModuleConfig] {
-        state.panelModules.filter { config in
-            guard config.enabled else { return false }
-            if config.module == .approvals { return !state.pendingPermissions.isEmpty }
-            if config.module == .projects { return !state.projects.isEmpty }
-            return true
-        }
-    }
+    private var shown: [PanelModuleConfig] { state.shownPanelModules }
 
     private func modules(in tab: NotchTab) -> [PanelModuleConfig] {
         shown.filter { $0.module.tab == tab }
@@ -184,7 +188,9 @@ struct TabBar: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .help(app.name)
+                    .help(app.name + " — drag to reorder")
+                    .reorderSource(id: app.id.uuidString)
+                    .reorderTarget(id: app.id.uuidString) { apps.move(dragged: $0, onto: $1) }
                 }
             }
 
@@ -219,6 +225,7 @@ struct MediaCard: View {
 
     var body: some View {
         card {
+          VStack(spacing: 0) {
             HStack(spacing: 12) {
                 artwork
                     .frame(width: 58, height: 58)
@@ -257,8 +264,27 @@ struct MediaCard: View {
                 }
                 Spacer(minLength: 0)
             }
+            if let track = media.track {
+                ProgressRow(track: track) { media.seek(to: $0) }
+                    .padding(.top, 6)
+            }
+            if media.activeSource != nil {
+                HStack(spacing: 8) {
+                    Image(systemName: "speaker.fill")
+                        .font(.system(size: 8))
+                        .frame(width: 34, alignment: .trailing)
+                    VolumeSlider(value: media.volume ?? 50, color: .green) { media.setVolume($0) }
+                        .frame(height: 12)
+                    Image(systemName: "speaker.wave.3.fill")
+                        .font(.system(size: 8))
+                        .frame(width: 34, alignment: .leading)
+                }
+                .foregroundStyle(.secondary)
+                .padding(.top, 4)
+            }
+          }
         }
-        .onAppear { media.refresh() }
+        .onAppear { media.refresh(force: true) }
     }
 
     @ViewBuilder
@@ -447,5 +473,50 @@ struct ClipboardPage: View {
         .padding(.horizontal, 6)
         .frame(height: rowHeight)
         .background(RoundedRectangle(cornerRadius: 5).fill(Color.white.opacity(0.05)))
+    }
+}
+
+/// Elapsed / total with a bar you can click to jump.
+struct ProgressRow: View {
+    let track: MediaStore.Track
+    let seek: (Double) -> Void
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            let elapsed = track.elapsed(at: context.date)
+            let duration = track.duration ?? 0
+            HStack(spacing: 8) {
+                Text(Self.time(elapsed))
+                    .frame(width: 34, alignment: .trailing)
+                GeometryReader { proxy in
+                    let fraction = duration > 0 ? elapsed / duration : 0
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Color.white.opacity(0.15))
+                        Capsule().fill(Color.white.opacity(0.85))
+                            .frame(width: max(proxy.size.width * fraction, 3))
+                    }
+                    .frame(height: 4)
+                    .frame(maxHeight: .infinity)
+                    .contentShape(Rectangle())
+                    .gesture(SpatialTapGesture().onEnded { tap in
+                        guard duration > 0 else { return }
+                        seek(min(max(tap.location.x / proxy.size.width, 0), 1) * duration)
+                    })
+                }
+                .frame(height: 12)
+                Text(duration > 0 ? Self.time(duration) : "–:––")
+                    .frame(width: 34, alignment: .leading)
+            }
+            .font(.system(size: 9, design: .rounded))
+            .monospacedDigit()
+            .foregroundStyle(.secondary)
+        }
+    }
+
+    static func time(_ seconds: Double) -> String {
+        let s = Int(seconds.rounded(.down))
+        return s >= 3600
+            ? String(format: "%d:%02d:%02d", s / 3600, (s % 3600) / 60, s % 60)
+            : String(format: "%d:%02d", s / 60, s % 60)
     }
 }

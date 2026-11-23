@@ -11,9 +11,13 @@ struct PanelSettings: View {
             }
             .pickerStyle(.radioGroup)
 
-            Text(state.panelLayout == .tabs
-                 ? "Sections are grouped into tabs: Claude, Music, Files and Clipboard."
-                 : "Every section shows at once, like a bento box. Half-width sections sit side by side.")
+            Text({
+                switch state.panelLayout {
+                case .tabs: return "Sections are grouped into tabs: Claude, Music, Files and Clipboard."
+                case .row: return "Every section becomes a column, all in one long row as tall as one section. Made for wide monitors; it scrolls sideways if it's wider than the screen."
+                case .all: return "Every section shows at once in a grid. Half-width sections sit side by side."
+                }
+            }())
                 .font(.caption).foregroundStyle(.secondary)
 
             Picker("Width", selection: $state.panelWidth) {
@@ -23,6 +27,7 @@ struct PanelSettings: View {
             }
             .pickerStyle(.segmented)
             .frame(width: 360)
+            .disabled(state.panelLayout == .row)
 
             Text("Sections").font(.headline).padding(.top, 4)
             List {
@@ -32,8 +37,8 @@ struct PanelSettings: View {
                         Text(config.module.title)
                             .frame(maxWidth: .infinity, alignment: .leading)
                         Picker("", selection: $config.fullWidth) {
-                            Text("Half").tag(false)
-                            Text("Full").tag(true)
+                            Text(state.panelLayout == .row ? "Narrow" : "Half").tag(false)
+                            Text(state.panelLayout == .row ? "Wide" : "Full").tag(true)
                         }
                         .pickerStyle(.segmented)
                         .labelsHidden()

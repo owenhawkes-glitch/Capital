@@ -205,6 +205,12 @@ as what it shows.
 
 ## What the closed notch shows
 
+**Drag icons in the notch to reorder them**, like ⌘-dragging menu bar
+icons. Drop one on an item across the camera (or on an empty part of that
+side) to move it to the other side. Icons in the panel's top bar can be
+dragged the same way. Right-click → **Size** makes the edge and floating
+notch Small, Normal, Large or Extra large.
+
 Settings → **Notch** lists everything that can sit in the closed notch:
 each Claude account's usage ring, each pinned app, a clipboard counter and
 a chats counter. For each one you can switch it on, choose a colour, and
@@ -223,16 +229,19 @@ reorder. The notch grows to fit and stays centred.
 
 Settings → **Panel** chooses how the expanded notch looks:
 
-- **Tabs** (Claude, Music, Files, Clipboard) or **Everything in one long
-  panel**, where sections sit in a grid
-- **Width**: Standard, Wide or Extra wide
-- **Sections**: switch each on or off, make it half or full width (half-width
-  sections pair up side by side), and reorder with the arrows
+- **Tabs** (Claude, Music, Files, Clipboard)
+- **Side by side**: every section is a column in one long row, as tall as one
+  section. Made for wide monitors; scrolls sideways if wider than the screen
+- **Stacked grid**: sections in rows, half-width ones paired up
+- **Width** (tabs and grid): Standard, Wide or Extra wide
+- **Sections**: switch each on or off, set narrow/wide (half/full in the
+  grid), and reorder with the arrows
 
 ## Music
 
-A play/pause ring can sit in the closed notch, and the panel has a
-now-playing card with artwork, track, artist and back / play / next. Works
+A play/pause ring with a volume slider can sit in the closed notch, and the
+panel has a now-playing card with artwork, track, artist, back / play / next,
+elapsed and total time (click the bar to jump) and volume. Works
 with Spotify and Apple Music. Track changes are read from the
 notifications both apps already broadcast; the buttons use AppleScript, so
 macOS asks once for permission to control Spotify or Music.

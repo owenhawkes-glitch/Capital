@@ -57,7 +57,20 @@ struct PanelModuleConfig: Codable, Identifiable, Equatable {
 }
 
 enum PanelLayoutStyle: String, Codable, CaseIterable, Identifiable {
-    case tabs, all
+    case tabs, row, all
     var id: String { rawValue }
-    var name: String { self == .tabs ? "Tabs" : "Everything in one long panel" }
+    var name: String {
+        switch self {
+        case .tabs: return "Tabs"
+        case .row: return "Side by side (one long row)"
+        case .all: return "Stacked grid"
+        }
+    }
+}
+
+enum PanelMetrics {
+    static let narrowColumn: CGFloat = 280
+    static let wideColumn: CGFloat = 380
+    static let spacing: CGFloat = 10
+    static let sidePadding: CGFloat = 14
 }

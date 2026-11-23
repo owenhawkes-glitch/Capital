@@ -31,8 +31,8 @@ struct NotchView: View {
 
     private var size: CGSize {
         expanded
-            ? NotchMetrics.expandedSize(geometry, placement: placement, strip: state.strip, width: state.panelWidth, contentHeight: state.measuredContentHeight)
-            : NotchMetrics.collapsedSize(geometry, placement: placement, strip: state.strip)
+            ? NotchMetrics.expandedSize(geometry, placement: placement, strip: state.strip, width: state.panelContentWidth(maxWidth: geometry.screen.visibleFrame.width - 40), contentHeight: state.measuredContentHeight)
+            : NotchMetrics.collapsedSize(geometry, placement: placement, strip: state.strip, scale: state.notchScale)
     }
 
     private var shape: AnyShape {
@@ -56,15 +56,15 @@ struct NotchView: View {
             if placement == .top {
                 VStack(spacing: 0) {
                     CollapsedStrip(state: state, geometry: geometry)
-                        .frame(width: NotchMetrics.collapsedSize(geometry, placement: .top, strip: state.strip).width,
+                        .frame(width: NotchMetrics.collapsedSize(geometry, placement: .top, strip: state.strip, scale: state.notchScale).width,
                                height: geometry.notchHeight)
                     if expanded {
-                        ExpandedPanel(state: state)
+                        ExpandedPanel(state: state, width: state.panelContentWidth(maxWidth: geometry.screen.visibleFrame.width - 40))
                             .transition(.opacity.combined(with: .move(edge: .top)))
                     }
                 }
             } else if expanded {
-                ExpandedPanel(state: state)
+                ExpandedPanel(state: state, width: state.panelContentWidth(maxWidth: geometry.screen.visibleFrame.width - 40))
                     .transition(.opacity)
             } else {
                 CompactPill(state: state, vertical: placement != .floating)
@@ -106,6 +106,13 @@ private struct NotchContextMenu: View {
                 }
             }
         }
+        if state.placement != .top {
+            Menu("Size") {
+                ForEach([("Small", 0.85), ("Normal", 1.0), ("Large", 1.35), ("Extra large", 1.7)], id: \.1) { option in
+                    Button((state.notchScale == option.1 ? "✓ " : "") + option.0) { state.notchScale = option.1 }
+                }
+            }
+        }
         Divider()
         Button("Quit DuoNotch") { NSApplication.shared.terminate(nil) }
     }
@@ -144,8 +151,10 @@ private struct CompactPill: View {
             }
             ForEach(items) { item in
                 NotchItemView(state: state, item: item, vertical: vertical)
+                    .reorderTarget(id: item.id.uuidString) { state.moveNotchItem(dragged: $0, onto: $1) }
             }
         }
+        .scaleEffect(state.notchScale)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .contentShape(Rectangle())
         .onTapGesture {
@@ -174,13 +183,37 @@ private struct CollapsedStrip: View {
     }
 
     private func wing(_ items: [NotchItem], alignment: Alignment) -> some View {
-        HStack(spacing: NotchStrip.spacing) {
+        let side: NotchSide = alignment == .trailing ? .left : .right
+        return HStack(spacing: NotchStrip.spacing) {
             ForEach(items) { item in
                 NotchItemView(state: state, item: item)
+                    .reorderTarget(id: item.id.uuidString) { state.moveNotchItem(dragged: $0, onto: $1) }
             }
         }
-        .frame(maxWidth: .infinity, alignment: alignment)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment)
         .padding(.horizontal, NotchStrip.padding / 2)
+        .contentShape(Rectangle())
+        // Dropping on an empty part of a wing moves the item to that side.
+        .onDrop(of: [.duoNotchReorder], delegate: WingDropDelegate(side: side, state: state))
+    }
+}
+
+private struct WingDropDelegate: DropDelegate {
+    let side: NotchSide
+    let state: AppState
+
+    func dropEntered(info: DropInfo) {
+        MainActor.assumeIsolated {
+            guard let dragged = ReorderState.shared.draggingID else { return }
+            withAnimation(.easeOut(duration: 0.15)) { state.moveNotchItem(dragged: dragged, toSide: side) }
+        }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
+
+    func performDrop(info: DropInfo) -> Bool {
+        MainActor.assumeIsolated { ReorderState.shared.draggingID = nil }
+        return true
     }
 }
 

@@ -56,6 +56,14 @@ final class AppShortcutStore: ObservableObject {
         shortcuts.move(fromOffsets: source, toOffset: destination)
     }
 
+    /// Puts the dragged app where the target app is.
+    func move(dragged: String, onto target: String) {
+        guard let from = shortcuts.firstIndex(where: { $0.id.uuidString == dragged }),
+              let to = shortcuts.firstIndex(where: { $0.id.uuidString == target }) else { return }
+        let item = shortcuts.remove(at: from)
+        shortcuts.insert(item, at: to)
+    }
+
     /// Moves an app one place up (-1) or down (+1).
     func shift(_ shortcut: AppShortcut, by delta: Int) {
         guard let i = shortcuts.firstIndex(where: { $0.id == shortcut.id }) else { return }

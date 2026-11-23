@@ -109,8 +109,8 @@ final class NotchController {
         guard let geometry else { return .zero }
         let strip = state.strip
         let size = state.isExpanded
-            ? NotchMetrics.expandedSize(geometry, placement: state.placement, strip: strip, width: state.panelWidth, contentHeight: state.measuredContentHeight)
-            : NotchMetrics.collapsedSize(geometry, placement: state.placement, strip: strip)
+            ? NotchMetrics.expandedSize(geometry, placement: state.placement, strip: strip, width: state.panelContentWidth(maxWidth: geometry.screen.visibleFrame.width - 40), contentHeight: state.measuredContentHeight)
+            : NotchMetrics.collapsedSize(geometry, placement: state.placement, strip: strip, scale: state.notchScale)
         return NotchMetrics.frame(geometry, placement: state.placement, size: size, floatingOrigin: state.floatingOrigin)
     }
 

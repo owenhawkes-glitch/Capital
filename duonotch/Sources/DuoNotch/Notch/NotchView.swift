@@ -1,17 +1,15 @@
 import SwiftUI
+import AppKit
 
-/// Hosting-view root: pins the notch to the top centre of the panel.
+/// Hosting-view root: anchors the notch to the edge it lives on.
 struct NotchRootView: View {
     @ObservedObject var state: AppState
     let geometry: NotchGeometry
 
     var body: some View {
-        VStack(spacing: 0) {
-            NotchView(state: state, geometry: geometry)
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .environment(\.colorScheme, .dark)
+        NotchView(state: state, geometry: geometry)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: NotchView.anchor(for: state.placement))
+            .environment(\.colorScheme, .dark)
     }
 }
 
@@ -20,38 +18,146 @@ struct NotchView: View {
     let geometry: NotchGeometry
 
     private var expanded: Bool { state.isExpanded }
+    private var placement: NotchPlacement { state.placement }
+    private var accountCount: Int { max(state.enabledAccounts.count, 1) }
+
+    static func anchor(for placement: NotchPlacement) -> Alignment {
+        switch placement {
+        case .top: return .top
+        case .left: return .leading
+        case .right: return .trailing
+        case .floating: return .topLeading
+        }
+    }
 
     private var size: CGSize {
-        NotchMetrics.size(geometry, expanded: expanded, layout: state.layout)
+        expanded
+            ? NotchMetrics.expandedSize(geometry, placement: placement, accounts: accountCount, contentHeight: state.measuredContentHeight)
+            : NotchMetrics.collapsedSize(geometry, placement: placement, accounts: accountCount)
+    }
+
+    private var shape: AnyShape {
+        let r: CGFloat = expanded ? 18 : 11
+        switch placement {
+        case .top:
+            return AnyShape(NotchShape(bottomRadius: expanded ? 20 : 10))
+        case .left:
+            return AnyShape(UnevenRoundedRectangle(bottomTrailingRadius: r, topTrailingRadius: r, style: .continuous))
+        case .right:
+            return AnyShape(UnevenRoundedRectangle(topLeadingRadius: r, bottomLeadingRadius: r, style: .continuous))
+        case .floating:
+            return AnyShape(RoundedRectangle(cornerRadius: r, style: .continuous))
+        }
     }
 
     var body: some View {
-        ZStack(alignment: .top) {
-            NotchShape(bottomRadius: expanded ? 20 : 11)
-                .fill(Color.black)
+        ZStack(alignment: Self.anchor(for: placement)) {
+            shape.fill(Color.black)
 
-            VStack(spacing: 0) {
-                CollapsedStrip(state: state, geometry: geometry)
-                    .frame(width: NotchMetrics.collapsedWidth(geometry), height: geometry.notchHeight)
-                if expanded {
-                    ExpandedPanel(state: state)
-                        .frame(width: size.width)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
+            if placement == .top {
+                VStack(spacing: 0) {
+                    CollapsedStrip(state: state, geometry: geometry)
+                        .frame(width: NotchMetrics.collapsedSize(geometry, placement: .top, accounts: accountCount).width,
+                               height: geometry.notchHeight)
+                    if expanded {
+                        ExpandedPanel(state: state)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+                }
+            } else if expanded {
+                ExpandedPanel(state: state)
+                    .transition(.opacity)
+            } else {
+                CompactPill(state: state, vertical: placement != .floating)
+                    .transition(.opacity)
+            }
+        }
+        .frame(width: size.width, height: size.height, alignment: Self.anchor(for: placement))
+        .clipShape(shape)
+        .overlay(
+            placement == .floating
+                ? AnyView(shape.stroke(Color.white.opacity(0.12), lineWidth: 1))
+                : AnyView(EmptyView())
+        )
+        .animation(.spring(response: 0.32, dampingFraction: 0.86), value: expanded)
+        .animation(.spring(response: 0.32, dampingFraction: 0.86), value: state.measuredContentHeight)
+        .foregroundStyle(.white)
+        .contextMenu { NotchContextMenu(state: state) }
+    }
+}
+
+private struct NotchContextMenu: View {
+    @ObservedObject var state: AppState
+
+    var body: some View {
+        Button("Settings…") { AppState.openSettings() }
+        Button("Refresh usage now") { Task { await state.refreshAll() } }
+        Button(state.pinnedOpen ? "Unpin" : "Keep open") { state.pinnedOpen.toggle() }
+        Menu("Position") {
+            ForEach(NotchPlacement.allCases) { option in
+                Button {
+                    state.placement = option
+                } label: {
+                    if option == state.placement { Text("✓ \(option.name)") } else { Text(option.name) }
                 }
             }
         }
-        .frame(width: size.width, height: size.height, alignment: .top)
-        .clipShape(NotchShape(bottomRadius: expanded ? 20 : 11))
-        .animation(.spring(response: 0.32, dampingFraction: 0.86), value: expanded)
-        .animation(.spring(response: 0.32, dampingFraction: 0.86), value: state.layout)
-        .foregroundStyle(.white)
-        .contextMenu {
-            Button("Settings…") { AppState.openSettings() }
-            Button("Refresh usage now") { Task { await state.refreshAll() } }
-            Button(state.pinnedOpen ? "Unpin notch" : "Pin notch open") { state.pinnedOpen.toggle() }
-            Divider()
-            Button("Quit DuoNotch") { NSApplication.shared.terminate(nil) }
+        Divider()
+        Button("Quit DuoNotch") { NSApplication.shared.terminate(nil) }
+    }
+}
+
+/// Drag-to-move for the floating placement.
+private struct FloatingDrag: ViewModifier {
+    @ObservedObject var state: AppState
+
+    func body(content: Content) -> some View {
+        if state.placement == .floating {
+            content.gesture(
+                DragGesture(minimumDistance: 3, coordinateSpace: .global)
+                    .onChanged { _ in state.floatingDragChanged() }
+                    .onEnded { _ in state.floatingDragEnded() }
+            )
+        } else {
+            content
         }
+    }
+}
+
+// MARK: - Compact pill (edges and floating)
+
+/// Rings only, for the side edges (stacked) and the floating panel (in a row).
+private struct CompactPill: View {
+    @ObservedObject var state: AppState
+    let vertical: Bool
+
+    var body: some View {
+        let layout = vertical ? AnyLayout(VStackLayout(spacing: 10)) : AnyLayout(HStackLayout(spacing: 14))
+        layout {
+            if state.enabledAccounts.isEmpty {
+                Text("–").font(.system(size: 11)).foregroundStyle(.secondary)
+            }
+            ForEach(state.enabledAccounts.prefix(2)) { account in
+                let window = state.readings[account.id]?.headline
+                let parts = vertical
+                    ? AnyLayout(VStackLayout(spacing: 3))
+                    : AnyLayout(HStackLayout(spacing: 6))
+                parts {
+                    ZStack(alignment: .topTrailing) {
+                        UsageRing(fraction: window?.fraction ?? 0, color: account.color)
+                        ActivityDot(counts: state.counts(for: account.id))
+                            .offset(x: 3, y: -2)
+                    }
+                    Text(window.map { "\($0.percent)%" } ?? "–")
+                        .font(.system(size: vertical ? 9 : 11, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+                }
+                .help(account.label)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .contentShape(Rectangle())
+        .modifier(FloatingDrag(state: state))
     }
 }
 
@@ -101,7 +207,113 @@ private struct CollapsedStrip: View {
 
 // MARK: - Expanded panel
 
+private struct ContentHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
 private struct ExpandedPanel: View {
+    @ObservedObject var state: AppState
+
+    var body: some View {
+        VStack(spacing: 8) {
+            TabBar(state: state)
+                .padding(.horizontal, 14)
+
+            switch state.selectedTab {
+            case .claude:
+                ClaudePage(state: state)
+            case .clipboard:
+                ClipboardPage()
+                    .padding(.horizontal, 14)
+            }
+
+            HStack {
+                Spacer()
+                if state.selectedTab == .claude, let last = state.lastRefresh {
+                    Text("updated \(last.formatted(date: .omitted, time: .shortened))")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 6)
+        }
+        .padding(.top, 6)
+        .frame(width: NotchMetrics.expandedWidth)
+        .fixedSize(horizontal: false, vertical: true)
+        .background(GeometryReader { proxy in
+            Color.clear.preference(key: ContentHeightKey.self, value: proxy.size.height)
+        })
+        .onPreferenceChange(ContentHeightKey.self) { height in
+            MainActor.assumeIsolated { state.setMeasuredContentHeight(height) }
+        }
+    }
+}
+
+/// Page switcher on the left, pinned apps on the right. In the floating
+/// placement the empty middle is the handle for dragging the window.
+private struct TabBar: View {
+    @ObservedObject var state: AppState
+    @ObservedObject private var apps = AppShortcutStore.shared
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(NotchTab.allCases) { tab in
+                Button {
+                    state.selectedTab = tab
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(tab.title)
+                        if tab == .claude, !state.pendingPermissions.isEmpty {
+                            Circle().fill(Color.yellow).frame(width: 5, height: 5)
+                        }
+                    }
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(state.selectedTab == tab ? Color.white : Color.secondary)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(Color.white.opacity(state.selectedTab == tab ? 0.14 : 0)))
+                    .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+
+            Color.clear
+                .frame(maxWidth: .infinity, minHeight: 20)
+                .contentShape(Rectangle())
+                .modifier(FloatingDrag(state: state))
+
+            if apps.shortcuts.isEmpty {
+                Button("+ apps") { AppState.openSettings() }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(apps.shortcuts) { app in
+                    Button {
+                        apps.open(app)
+                    } label: {
+                        VStack(spacing: 1) {
+                            Image(nsImage: apps.icon(for: app))
+                                .resizable()
+                                .frame(width: 18, height: 18)
+                            Circle()
+                                .fill(apps.isRunning(app) ? Color.white.opacity(0.7) : Color.clear)
+                                .frame(width: 3, height: 3)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help(app.name)
+                }
+            }
+        }
+        .frame(height: 24)
+    }
+}
+
+private struct ClaudePage: View {
     @ObservedObject var state: AppState
 
     var body: some View {
@@ -116,7 +328,6 @@ private struct ExpandedPanel: View {
                 }
             }
             .padding(.horizontal, 14)
-            .padding(.top, 8)
 
             if !state.projects.isEmpty {
                 ProjectsRow(state: state)
@@ -127,20 +338,95 @@ private struct ExpandedPanel: View {
                 ApprovalList(state: state)
                     .padding(.horizontal, 14)
             }
+        }
+    }
+}
 
-            Spacer(minLength: 0)
+// MARK: - Clipboard page
 
-            HStack {
-                Spacer()
-                if let last = state.lastRefresh {
-                    Text("updated \(last.formatted(date: .omitted, time: .shortened))")
-                        .font(.system(size: 9))
-                        .foregroundStyle(.secondary)
+private struct ClipboardPage: View {
+    @ObservedObject private var clipboard = ClipboardStore.shared
+    private let rowHeight: CGFloat = 20
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            column(title: "Snippets", action: ("Save clipboard", { clipboard.saveCurrentClipboard() })) {
+                if clipboard.snippets.isEmpty {
+                    hint("Pin a recent copy, or save what's on the clipboard now.")
+                }
+                ForEach(clipboard.snippets) { snippet in
+                    row(text: snippet.displayTitle, full: snippet.text, icon: "xmark", iconHelp: "Remove snippet") {
+                        clipboard.removeSnippet(snippet)
+                    }
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 8)
+            column(title: "Recent", action: ("Clear", { clipboard.clearHistory() })) {
+                if !clipboard.enabled {
+                    hint("Clipboard history is off. Turn it on in Settings → Clipboard.")
+                } else if clipboard.history.isEmpty {
+                    hint("Copy something and it appears here. Kept in memory only.")
+                }
+                ForEach(clipboard.history) { item in
+                    row(text: ClipboardStore.oneLine(item.text), full: item.text, icon: "pin", iconHelp: "Pin as snippet") {
+                        clipboard.pin(item)
+                    }
+                }
+            }
         }
+    }
+
+    private func column<Content: View>(title: String, action: (String, () -> Void), @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(title).font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
+                Spacer()
+                Button(action.0, action: action.1)
+                    .buttonStyle(.plain)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+            }
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 2) { content() }
+            }
+            .frame(height: CGFloat(NotchMetrics.clipboardRows) * (rowHeight + 2))
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.06)))
+    }
+
+    private func hint(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 9))
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func row(text: String, full: String, icon: String, iconHelp: String, iconAction: @escaping () -> Void) -> some View {
+        HStack(spacing: 6) {
+            Button {
+                clipboard.copy(full)
+            } label: {
+                Text(clipboard.lastCopiedText == full ? "Copied" : text)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(clipboard.lastCopiedText == full ? Color.green : Color.white)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(full.count > 400 ? String(full.prefix(400)) + "…" : full)
+            Button(action: iconAction) {
+                Image(systemName: icon).font(.system(size: 8))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help(iconHelp)
+        }
+        .padding(.horizontal, 6)
+        .frame(height: rowHeight)
+        .background(RoundedRectangle(cornerRadius: 5).fill(Color.white.opacity(0.05)))
     }
 }
 
@@ -299,7 +585,7 @@ private struct ProjectsRow: View {
             }
             .padding(.vertical, 2)
         }
-        .frame(height: NotchMetrics.projectsRowHeight - 6)
+        .frame(height: 28)
     }
 }
 

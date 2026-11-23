@@ -44,9 +44,17 @@ final class AppState: ObservableObject {
     @Published var hovering = false
     @Published var pinnedOpen = false
     @Published private(set) var peeking = false
+    /// True while the floating panel is being dragged, so it doesn't collapse.
+    @Published var dragging = false
+    @Published var selectedTab: NotchTab = .claude
+    /// Height the expanded content asked for last time it was laid out.
+    @Published var measuredContentHeight: CGFloat = NotchMetrics.estimatedContentHeight
 
+    /// Opens only on hover by default. Peeks and approvals open it only when
+    /// the matching setting is on.
     var isExpanded: Bool {
-        pinnedOpen || hovering || peeking || !pendingPermissions.isEmpty
+        pinnedOpen || hovering || dragging || peeking
+            || (openForApprovals && !pendingPermissions.isEmpty)
     }
 
     // MARK: Preferences (persisted in UserDefaults)
@@ -63,6 +71,22 @@ final class AppState: ObservableObject {
     @Published var peekOnFinish: Bool {
         didSet { defaults.set(peekOnFinish, forKey: Keys.peekOnFinish) }
     }
+    @Published var openForApprovals: Bool {
+        didSet { defaults.set(openForApprovals, forKey: Keys.openForApprovals) }
+    }
+    @Published var placement: NotchPlacement {
+        didSet { defaults.set(placement.rawValue, forKey: Keys.placement) }
+    }
+    /// Top-left corner of the floating panel, in screen coordinates.
+    @Published var floatingOrigin: CGPoint? {
+        didSet {
+            if let p = floatingOrigin {
+                defaults.set([p.x, p.y], forKey: Keys.floatingOrigin)
+            } else {
+                defaults.removeObject(forKey: Keys.floatingOrigin)
+            }
+        }
+    }
     @Published var showMenuBarText: Bool {
         didSet { defaults.set(showMenuBarText, forKey: Keys.menuBarText) }
     }
@@ -73,7 +97,10 @@ final class AppState: ObservableObject {
         static let accounts = "accounts.v1"
         static let demoMode = "demoMode"
         static let pollInterval = "pollIntervalSeconds"
-        static let peekOnFinish = "peekOnFinish"
+        static let peekOnFinish = "peekOnFinish.v2"
+        static let openForApprovals = "openForApprovals"
+        static let placement = "placement"
+        static let floatingOrigin = "floatingOrigin"
         static let menuBarText = "showMenuBarText"
         static let projects = "projects.v1"
         static let terminalApp = "terminalApp"
@@ -93,7 +120,17 @@ final class AppState: ObservableObject {
         let stored = UserDefaults.standard
         let interval = stored.integer(forKey: Keys.pollInterval)
         pollIntervalSeconds = interval > 0 ? interval : 300
-        peekOnFinish = stored.object(forKey: Keys.peekOnFinish) as? Bool ?? true
+        peekOnFinish = stored.bool(forKey: Keys.peekOnFinish)
+        openForApprovals = stored.bool(forKey: Keys.openForApprovals)
+        placement = NotchPlacement(rawValue: stored.string(forKey: Keys.placement) ?? "") ?? .top
+        if let xy = stored.array(forKey: Keys.floatingOrigin) as? [Double], xy.count == 2 {
+            floatingOrigin = CGPoint(x: xy[0], y: xy[1])
+        } else {
+            floatingOrigin = nil
+        }
+        // Debug aids for screenshots: start open, and on a given tab.
+        pinnedOpen = ProcessInfo.processInfo.environment["DUONOTCH_OPEN"] == "1"
+        selectedTab = NotchTab(rawValue: ProcessInfo.processInfo.environment["DUONOTCH_TAB"] ?? "") ?? .claude
         showMenuBarText = stored.bool(forKey: Keys.menuBarText)
         demoMode = stored.bool(forKey: Keys.demoMode)
             || ProcessInfo.processInfo.environment["DUONOTCH_DEMO"] == "1"
@@ -345,7 +382,7 @@ final class AppState: ObservableObject {
             switch payload.notification_type {
             case "permission_prompt":
                 session.state = .waiting
-                peek()
+                if openForApprovals { peek() }
             case "idle_prompt":
                 session.state = .idle
             default:
@@ -526,14 +563,31 @@ final class AppState: ObservableObject {
 
     // MARK: - Notch layout
 
-    /// What the expanded panel needs room for right now.
-    var layout: NotchLayoutInfo {
-        let rows = enabledAccounts.map { sessions(for: $0.id).count }.max() ?? 0
-        return NotchLayoutInfo(
-            pendingCount: pendingPermissions.count,
-            sessionRows: min(rows, NotchMetrics.maxSessionRows),
-            showsProjects: !projects.isEmpty
-        )
+    /// Supplied by the notch controller: the panel's current top-left corner.
+    var panelTopLeft: (() -> CGPoint)?
+    private var dragStartMouse: CGPoint = .zero
+    private var dragStartOrigin: CGPoint = .zero
+
+    func floatingDragChanged() {
+        let mouse = NSEvent.mouseLocation
+        if !dragging {
+            dragging = true
+            dragStartMouse = mouse
+            dragStartOrigin = panelTopLeft?() ?? floatingOrigin ?? mouse
+        }
+        floatingOrigin = CGPoint(x: dragStartOrigin.x + mouse.x - dragStartMouse.x,
+                                 y: dragStartOrigin.y + mouse.y - dragStartMouse.y)
+    }
+
+    func floatingDragEnded() {
+        // Keep the clamped position the panel actually ended up at.
+        if let topLeft = panelTopLeft?() { floatingOrigin = topLeft }
+        dragging = false
+    }
+
+    func setMeasuredContentHeight(_ height: CGFloat) {
+        let rounded = height.rounded(.up)
+        if abs(rounded - measuredContentHeight) > 0.5 { measuredContentHeight = rounded }
     }
 
     // MARK: - Settings window

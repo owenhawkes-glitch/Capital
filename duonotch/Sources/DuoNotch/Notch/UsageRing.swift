@@ -53,26 +53,25 @@ struct UsageBar: View {
 }
 
 /// Small coloured dot that says what the account's sessions are doing.
+/// The pulse is computed from the clock rather than a repeating animation,
+/// so it can never drift when the notch expands or moves.
 struct ActivityDot: View {
     var counts: SessionCounts
-    @State private var pulse = false
 
     var body: some View {
-        Group {
-            if counts.waiting > 0 {
-                Circle().fill(Color.yellow)
-                    .scaleEffect(pulse ? 1.25 : 0.8)
-                    .animation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true), value: pulse)
-                    .onAppear { pulse = true }
-            } else if counts.running > 0 {
-                Circle().fill(Color.green)
-                    .opacity(pulse ? 1 : 0.35)
-                    .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: pulse)
-                    .onAppear { pulse = true }
-            } else if counts.idle > 0 {
-                Circle().fill(Color.white.opacity(0.5))
-            } else {
-                Circle().fill(Color.clear)
+        TimelineView(.animation(minimumInterval: 1.0 / 20.0, paused: counts.waiting == 0 && counts.running == 0)) { context in
+            let t = context.date.timeIntervalSinceReferenceDate
+            let wave = (sin(t * .pi * 1.4) + 1) / 2   // 0…1
+            Group {
+                if counts.waiting > 0 {
+                    Circle().fill(Color.yellow).scaleEffect(0.8 + 0.45 * wave)
+                } else if counts.running > 0 {
+                    Circle().fill(Color.green).opacity(0.35 + 0.65 * wave)
+                } else if counts.idle > 0 {
+                    Circle().fill(Color.white.opacity(0.5))
+                } else {
+                    Circle().fill(Color.clear)
+                }
             }
         }
         .frame(width: 5, height: 5)

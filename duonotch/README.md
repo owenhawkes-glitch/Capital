@@ -184,6 +184,38 @@ Under the hood the app writes a small `.command` script to
 iTerm2, pick one in Settings → Projects) to open it. No automation
 permission is needed for launching.
 
+## Position, size and when it opens
+
+Right-click the notch → **Position**, or Settings → Behaviour:
+
+- **Top centre (notch)**: sits in the camera housing, or draws a fake notch
+  exactly as tall as the menu bar on screens without one
+- **Left edge / Right edge**: a small tab at mid-height with the two rings
+  stacked; the panel slides out from that edge on hover
+- **Floating window**: a small pill you can put anywhere. Drag the empty part
+  of the panel's top bar (or the pill itself) to move it. Settings has
+  **Reset position**
+
+By default it opens **only on hover**. A pulsing amber dot on a ring means a
+chat is waiting on you. Two toggles in Settings → Behaviour bring back
+auto-opening when a chat finishes or when Claude asks for approval.
+
+The expanded panel measures its own content, so it is always exactly as tall
+as what it shows.
+
+## Apps and clipboard
+
+The expanded panel has two tabs, **Claude** and **Clipboard**, and a row of
+app icons on the right of the tab bar.
+
+- **Apps**: Settings → Apps → **Add app…** or **Pick from open apps**. Click an
+  icon to open or switch to the app; a dot underneath means it's running.
+- **Clipboard**: the last 20 text copies (10/20/50 in Settings) and your
+  pinned snippets. Click a row to copy it back. The pin icon saves a recent
+  copy as a snippet. History is in memory only and copies that password
+  managers flag as private are skipped. Snippets are saved unencrypted in
+  preferences, so don't keep secrets there.
+
 ## Chat list and labels
 
 Each account card lists its chats (up to four, most recent first) with a
@@ -219,6 +251,8 @@ duonotch/
         ├── Sessions/             hook server, session model, settings.json installer
         ├── Notch/                NSPanel controller, geometry, SwiftUI views
         ├── Projects/             project model, terminal launcher, tab raiser
+        ├── Apps/                 pinned app shortcuts
+        ├── Clipboard/            clipboard history and snippets
         ├── Settings/             Settings window
         └── Support/              demo data
 ```

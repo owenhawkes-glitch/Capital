@@ -42,7 +42,7 @@ run: bundle
 
 demo: bundle
 	$(stop_app)
-	DUONOTCH_DEMO=1 open "$(BUNDLE)"
+	open --env DUONOTCH_DEMO=1 "$(BUNDLE)"
 
 release:
 	$(MAKE) bundle CONFIG=release

@@ -11,12 +11,16 @@ struct SettingsView: View {
                 .tabItem { Label("Accounts", systemImage: "person.2") }
             ProjectsSettings()
                 .tabItem { Label("Projects", systemImage: "folder") }
+            AppsSettings()
+                .tabItem { Label("Apps", systemImage: "square.grid.2x2") }
+            ClipboardSettings()
+                .tabItem { Label("Clipboard", systemImage: "doc.on.clipboard") }
             BehaviourSettings()
                 .tabItem { Label("Behaviour", systemImage: "slider.horizontal.3") }
             AboutSettings()
                 .tabItem { Label("About", systemImage: "info.circle") }
         }
-        .frame(width: 620, height: 560)
+        .frame(width: 680, height: 580)
         .onAppear {
             NSApp.activate(ignoringOtherApps: true)
             state.refreshHooksInstalled()
@@ -200,7 +204,24 @@ private struct BehaviourSettings: View {
             }
 
             Section("Notch") {
-                Toggle("Open for 5 seconds when a session finishes or asks something", isOn: $state.peekOnFinish)
+                Picker("Position", selection: $state.placement) {
+                    ForEach(NotchPlacement.allCases) { option in
+                        Text(option.name).tag(option)
+                    }
+                }
+                if state.placement == .floating {
+                    HStack {
+                        Text("Drag the empty part of the top bar to move it.")
+                            .font(.caption).foregroundStyle(.secondary)
+                        Spacer()
+                        Button("Reset position") { state.floatingOrigin = nil }
+                            .controlSize(.small)
+                    }
+                }
+                Toggle("Open for 5 seconds when a chat finishes", isOn: $state.peekOnFinish)
+                Toggle("Open automatically when Claude asks for approval", isOn: $state.openForApprovals)
+                Text("With both off, the notch only opens when you hover it. A pulsing amber dot shows when a chat is waiting on you.")
+                    .font(.caption).foregroundStyle(.secondary)
                 Toggle("Keep the notch open", isOn: $state.pinnedOpen)
                 Toggle("Show percentages in the menu bar", isOn: $state.showMenuBarText)
             }

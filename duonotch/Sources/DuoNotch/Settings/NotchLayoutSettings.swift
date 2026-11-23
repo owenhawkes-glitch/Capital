@@ -8,7 +8,7 @@ struct NotchLayoutSettings: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Choose what the closed notch shows. The notch gets longer as you switch more on, and stays centred, so both sides grow to the wider one. Drag rows to change the order.")
+            Text("Choose what the closed notch shows. The notch gets longer as you switch more on, and stays centred, so both sides grow to the wider one. Use the arrows or drag rows to change the order.")
                 .font(.callout)
                 .fixedSize(horizontal: false, vertical: true)
             Text("App rings are solid while the app is running. The chats ring turns amber when a chat is waiting on you. Add more apps in the Apps tab.")
@@ -39,6 +39,12 @@ struct NotchLayoutSettings: View {
                             .labelsHidden()
                             .frame(width: 110)
                             .disabled(state.placement != .top)
+                            OrderButtons(
+                                canMoveUp: state.notchItems.first?.id != item.id,
+                                canMoveDown: state.notchItems.last?.id != item.id,
+                                up: { shift(item, by: -1) },
+                                down: { shift(item, by: 1) }
+                            )
                         }
                         .opacity(item.enabled ? 1 : 0.6)
                     }
@@ -54,6 +60,22 @@ struct NotchLayoutSettings: View {
         }
         .padding()
         .onAppear { state.reconcileNotchItems() }
+    }
+
+    /// Moves past rows that are hidden (deleted accounts or apps) so each
+    /// click visibly moves the item.
+    private func shift(_ item: NotchItem, by delta: Int) {
+        var items = state.notchItems
+        guard var i = items.firstIndex(where: { $0.id == item.id }) else { return }
+        var j = i + delta
+        while items.indices.contains(j), name(for: items[j]) == nil { j += delta }
+        guard items.indices.contains(j) else { return }
+        while i != j {
+            let next = i + delta
+            items.swapAt(i, next)
+            i = next
+        }
+        state.notchItems = items
     }
 
     /// nil hides rows whose account or app no longer exists.

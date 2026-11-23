@@ -56,6 +56,14 @@ final class AppShortcutStore: ObservableObject {
         shortcuts.move(fromOffsets: source, toOffset: destination)
     }
 
+    /// Moves an app one place up (-1) or down (+1).
+    func shift(_ shortcut: AppShortcut, by delta: Int) {
+        guard let i = shortcuts.firstIndex(where: { $0.id == shortcut.id }) else { return }
+        let j = i + delta
+        guard shortcuts.indices.contains(j) else { return }
+        shortcuts.swapAt(i, j)
+    }
+
     func open(_ shortcut: AppShortcut) {
         let config = NSWorkspace.OpenConfiguration()
         config.activates = true

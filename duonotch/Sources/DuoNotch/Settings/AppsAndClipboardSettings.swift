@@ -52,6 +52,12 @@ struct AppsSettings: View {
                             .font(.caption).foregroundStyle(.secondary)
                             .lineLimit(1).truncationMode(.middle)
                         Spacer()
+                        OrderButtons(
+                            canMoveUp: store.shortcuts.first?.id != app.id,
+                            canMoveDown: store.shortcuts.last?.id != app.id,
+                            up: { store.shift(app, by: -1) },
+                            down: { store.shift(app, by: 1) }
+                        )
                         Button("Remove") { store.remove(app) }
                             .controlSize(.small)
                     }
@@ -59,7 +65,7 @@ struct AppsSettings: View {
                 .onMove { store.move(from: $0, to: $1) }
             }
             .frame(minHeight: 200)
-            Text("Drag rows to reorder. Roughly ten icons fit next to the tabs.")
+            Text("Use the arrows (or drag rows) to set the order icons appear in the panel. Roughly ten fit next to the tabs.")
                 .font(.caption).foregroundStyle(.secondary)
         }
         .padding()
@@ -128,5 +134,25 @@ struct ClipboardSettings: View {
             .frame(minHeight: 220)
         }
         .padding()
+    }
+}
+
+/// Up/down arrows for reordering a row.
+struct OrderButtons: View {
+    var canMoveUp: Bool
+    var canMoveDown: Bool
+    var up: () -> Void
+    var down: () -> Void
+
+    var body: some View {
+        HStack(spacing: 2) {
+            Button(action: up) { Image(systemName: "chevron.up") }
+                .disabled(!canMoveUp)
+                .help("Move up")
+            Button(action: down) { Image(systemName: "chevron.down") }
+                .disabled(!canMoveDown)
+                .help("Move down")
+        }
+        .controlSize(.small)
     }
 }

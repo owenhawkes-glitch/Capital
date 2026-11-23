@@ -62,7 +62,7 @@ struct NotchView: View {
                                height: geometry.notchHeight)
                     if expanded {
                         ExpandedPanel(state: state, width: state.panelContentWidth(maxWidth: geometry.screen.visibleFrame.width - 40), maxHeight: geometry.screen.visibleFrame.height - 20)
-                            .transition(.opacity.combined(with: .move(edge: .top)))
+                            .transition(look.openStyle.transition(edge: .top))
                     }
                 }
             } else if expanded && (placement == .left || placement == .right) {
@@ -73,7 +73,7 @@ struct NotchView: View {
                             .frame(width: pill.width, height: min(pill.height, size.height))
                     }
                     ExpandedPanel(state: state, width: state.panelContentWidth(maxWidth: geometry.screen.visibleFrame.width - 40), maxHeight: geometry.screen.visibleFrame.height - 20)
-                        .transition(.opacity)
+                        .transition(look.openStyle.transition(edge: placement == .left ? .leading : .trailing))
                     if placement == .right {
                         CompactPill(state: state, vertical: true)
                             .frame(width: pill.width, height: min(pill.height, size.height))
@@ -81,7 +81,7 @@ struct NotchView: View {
                 }
             } else if expanded {
                 ExpandedPanel(state: state, width: state.panelContentWidth(maxWidth: geometry.screen.visibleFrame.width - 40), maxHeight: geometry.screen.visibleFrame.height - 20)
-                    .transition(.opacity)
+                    .transition(look.openStyle.transition(edge: .top))
             } else {
                 CompactPill(state: state, vertical: placement != .floating)
                     .transition(.opacity)
@@ -95,8 +95,8 @@ struct NotchView: View {
                 : AnyView(EmptyView())
         )
         .overlay(GlowBorder(shape: shape))
-        .animation(look.openAnimation.animation, value: expanded)
-        .animation(look.openAnimation.animation, value: state.measuredContentHeight)
+        .animation(look.openAnimationValue, value: expanded)
+        .animation(look.openAnimationValue, value: state.measuredContentHeight)
         .foregroundStyle(.white)
         .contextMenu { NotchContextMenu(state: state) }
         .onDrop(of: [.fileURL], isTargeted: $state.fileDragOver) { providers in

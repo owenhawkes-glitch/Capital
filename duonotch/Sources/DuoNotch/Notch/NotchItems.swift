@@ -55,7 +55,13 @@ struct NotchItem: Codable, Identifiable, Equatable {
             case .digital12: return 58 + label + (clock.showSeconds ? 20 : 0)
             case .flip: return 44 + label + (clock.showSeconds ? 18 : 0)
             }
-        case .ticker: return 118
+        case .ticker(let id):
+            switch MarketStore.shared.tickers.first(where: { $0.id == id })?.display ?? .price {
+            case .price: return 118
+            case .change: return 92
+            case .priceAndChange: return 160
+            case .profit: return 132
+            }
         case .weather: return 46
         case .logo: return 20
         case .spacer: return 12
@@ -136,25 +142,53 @@ struct NotchItemView: View {
 
     private func px(_ v: CGFloat) -> CGFloat { (v * scale).rounded() }
 
+    /// Whether this item draws in the notch glow's moving colours.
+    private var usesGlow: Bool {
+        if item.colorHex == NotchItem.glowColor { return true }
+        if case .account(let id) = item.kind {
+            return state.accounts.first { $0.id == id }?.colorHex == NotchItem.glowColor
+        }
+        return false
+    }
+
     var body: some View {
-        if case .media = item.kind {
-            content
-        } else {
-            content.reorderSource(id: item.id.uuidString)
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !usesGlow || !look.animatedIcons)) { context in
+            if case .media = item.kind {
+                content(context.date)
+            } else {
+                content(context.date).reorderSource(id: item.id.uuidString)
+            }
         }
     }
 
+    /// The item's colour as a fill: plain, or the glow's colours at `now`.
+    private func tint(_ now: Date, _ opacity: Double = 1, hex: String? = nil) -> AnyShapeStyle {
+        let value = hex ?? item.colorHex
+        if value == NotchItem.glowColor {
+            let colors = look.theme.accentColors
+            let gradient = AngularGradient(colors: colors + [colors[0]], center: .center,
+                                           angle: .degrees(AppearanceStore.glowAngle(at: now)))
+            return AnyShapeStyle(gradient.opacity(opacity))
+        }
+        return AnyShapeStyle(Color(hex: value).opacity(opacity))
+    }
+
+    /// A plain colour for controls that can't take a gradient.
+    private var solid: Color {
+        item.colorHex == NotchItem.glowColor ? look.theme.accentColors[0] : Color(hex: item.colorHex)
+    }
+
     @ViewBuilder
-    private var content: some View {
+    private func content(_ now: Date) -> some View {
         switch item.kind {
         case .account(let id):
             if let account = state.accounts.first(where: { $0.id == id }) {
-                accountView(account)
+                accountView(account, now: now)
             }
         case .app(let id):
             if let app = apps.shortcuts.first(where: { $0.id == id }) {
                 Button { apps.open(app) } label: {
-                    imageRing(Image(nsImage: apps.icon(for: app)), active: apps.isRunning(app))
+                    imageRing(Image(nsImage: apps.icon(for: app)), active: apps.isRunning(app), now: now)
                 }
                 .buttonStyle(.plain)
                 .help(app.name + (apps.isRunning(app) ? " (running)" : ""))
@@ -163,9 +197,9 @@ struct NotchItemView: View {
             if let link = links.links.first(where: { $0.id == id }) {
                 Button { links.open(link) } label: {
                     if let icon = links.icon(for: link) {
-                        imageRing(Image(nsImage: icon), active: true)
+                        imageRing(Image(nsImage: icon), active: true, now: now)
                     } else {
-                        symbolRing("link", color: Color(hex: item.colorHex), active: true)
+                        symbolRing("link", now: now, active: true)
                     }
                 }
                 .buttonStyle(.plain)
@@ -174,7 +208,7 @@ struct NotchItemView: View {
         case .clipboard:
             Button { state.show(tab: .clipboard) } label: {
                 badge(symbol: "doc.on.clipboard", count: clipboard.history.count,
-                      color: Color(hex: item.colorHex), active: !clipboard.history.isEmpty,
+                      now: now, active: !clipboard.history.isEmpty,
                       bounceOn: clipboard.history.first?.id.hashValue ?? 0)
             }
             .buttonStyle(.plain)
@@ -184,7 +218,7 @@ struct NotchItemView: View {
             let waiting = state.sessions.filter { $0.state == .waiting }.count
             Button { state.show(tab: .claude) } label: {
                 badge(symbol: "bubble.left.and.bubble.right", count: running + waiting,
-                      color: waiting > 0 ? .yellow : Color(hex: item.colorHex), active: running + waiting > 0,
+                      now: now, override: waiting > 0 ? .yellow : nil, active: running + waiting > 0,
                       animation: waiting > 0 ? .bounce : (running > 0 ? .pulse : .none))
             }
             .buttonStyle(.plain)
@@ -194,14 +228,14 @@ struct NotchItemView: View {
             HStack(spacing: px(6)) {
                 Button { media.playPause() } label: {
                     symbolRing(playing && look.animatedIcons ? "waveform" : (playing ? "pause.fill" : "play.fill"),
-                               color: Color(hex: item.colorHex), active: playing,
+                               now: now, active: playing,
                                animation: playing ? .colour : .none)
                 }
                 .buttonStyle(.plain)
                 .help(media.track.map { "\($0.title) · \($0.artist)" } ?? "Play / pause")
                 .reorderSource(id: item.id.uuidString)
                 if !vertical {
-                    VolumeSlider(value: media.volume ?? 50, color: Color(hex: item.colorHex)) { media.setVolume($0) }
+                    VolumeSlider(value: media.volume ?? 50, color: solid) { media.setVolume($0) }
                         .frame(width: px(66), height: px(14))
                         .onAppear { media.refresh() }
                 }
@@ -214,7 +248,7 @@ struct NotchItemView: View {
                     if !(clock.isLocal && clock.label.isEmpty) {
                         Text(Self.short(clock))
                             .font(.system(size: px(8), weight: .bold, design: .rounded))
-                            .foregroundStyle(Color(hex: item.colorHex))
+                            .foregroundStyle(tint(now))
                     }
                     face
                 }
@@ -240,24 +274,43 @@ struct NotchItemView: View {
             if let ticker = markets.tickers.first(where: { $0.id == id }) {
                 let quote = markets.quotes[ticker.symbol]
                 let up = (quote?.change ?? 0) >= 0
+                let trend = up ? markets.upColor : markets.downColor
+                let display = ticker.display ?? .price
+                let pl = quote.flatMap { ticker.profit(at: $0.price) }
                 Button { markets.open(ticker) } label: {
                     let layout = vertical ? AnyLayout(VStackLayout(spacing: px(1))) : AnyLayout(HStackLayout(spacing: px(4)))
                     layout {
                         Text(ticker.name)
                             .font(.system(size: px(vertical ? 7 : 9), weight: .bold, design: .rounded))
-                            .foregroundStyle(Color(hex: item.colorHex))
+                            .foregroundStyle(tint(now, hex: ticker.colorHex ?? item.colorHex))
                             .lineLimit(1)
-                        Text(quote.map { MarketStore.format($0.price) } ?? "–")
-                            .font(.system(size: px(vertical ? 8 : 10), weight: .semibold, design: .rounded))
-                            .monospacedDigit()
-                        Image(systemName: up ? "arrowtriangle.up.fill" : "arrowtriangle.down.fill")
-                            .font(.system(size: px(6)))
-                            .foregroundStyle(up ? Color.green : Color.red)
+                        if display == .price || display == .priceAndChange {
+                            Text(quote.map { MarketStore.format($0.price) } ?? "–")
+                                .font(.system(size: px(vertical ? 8 : 10), weight: .semibold, design: .rounded))
+                                .monospacedDigit()
+                        }
+                        if display == .change || display == .priceAndChange {
+                            Text(quote.map { String(format: "%+.2f%%", $0.change) } ?? "–")
+                                .font(.system(size: px(vertical ? 8 : 10), weight: .semibold, design: .rounded))
+                                .monospacedDigit()
+                                .foregroundStyle(trend)
+                        }
+                        if display == .profit {
+                            Text(pl.map { MarketStore.formatProfit($0, currency: vertical ? "" : ticker.quoteCurrency) } ?? "set position")
+                                .font(.system(size: px(vertical ? 8 : 10), weight: .bold, design: .rounded))
+                                .monospacedDigit()
+                                .foregroundStyle(pl.map { $0 >= 0 ? markets.upColor : markets.downColor } ?? .secondary)
+                        }
+                        if display == .price {
+                            Image(systemName: up ? "arrowtriangle.up.fill" : "arrowtriangle.down.fill")
+                                .font(.system(size: px(6)))
+                                .foregroundStyle(trend)
+                        }
                     }
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .help("\(ticker.name) \(quote.map { String(format: "%+.2f%%", $0.change) } ?? "") — open on TradingView")
+                .help("\(ticker.name) \(quote.map { String(format: "%+.2f%%", $0.change) } ?? "")\(pl.map { " · P/L " + MarketStore.formatProfit($0, currency: ticker.quoteCurrency) } ?? "") — open on TradingView")
             }
         case .logo:
             Button { AppState.openSettings() } label: {
@@ -277,7 +330,7 @@ struct NotchItemView: View {
                             Image(systemName: look.logoSymbol)
                                 .resizable().aspectRatio(contentMode: .fit)
                                 .symbolRenderingMode(.hierarchical)
-                                .foregroundStyle(Color(hex: item.colorHex))
+                                .foregroundStyle(tint(now))
                                 .animatedSymbol(look.logoAnimation)
                         }
                     }
@@ -287,7 +340,7 @@ struct NotchItemView: View {
             }
             .buttonStyle(.plain)
         case .caffeine:
-            let colour = caffeine.isOn ? Color.orange : Color.white.opacity(0.45)
+            let colour: AnyShapeStyle = caffeine.isOn ? tint(now) : AnyShapeStyle(Color.white.opacity(0.45))
             Button { caffeine.toggle() } label: {
                 Image(systemName: caffeine.holding ? "cup.and.heat.waves.fill" : "cup.and.saucer.fill")
                     .font(.system(size: px(12), weight: .semibold))
@@ -316,7 +369,7 @@ struct NotchItemView: View {
         case .files:
             Button { state.show(tab: .files) } label: {
                 badge(symbol: "tray.full", count: shelf.files.count,
-                      color: Color(hex: item.colorHex), active: !shelf.files.isEmpty)
+                      now: now, active: !shelf.files.isEmpty)
             }
             .buttonStyle(.plain)
             .help("File shelf: \(shelf.files.count) files. Drop files on the notch to park them.")
@@ -331,9 +384,9 @@ struct NotchItemView: View {
     }
 
     /// An app or site icon inside a coloured ring, drawn at full resolution.
-    private func imageRing(_ image: Image, active: Bool) -> some View {
+    private func imageRing(_ image: Image, active: Bool, now: Date) -> some View {
         ZStack {
-            Circle().stroke(Color(hex: item.colorHex).opacity(active ? 1 : 0.3), lineWidth: max(2, 2 * scale))
+            Circle().stroke(tint(now, active ? 1 : 0.3), lineWidth: max(2, 2 * scale))
             image
                 .resizable()
                 .interpolation(.high)
@@ -346,12 +399,12 @@ struct NotchItemView: View {
         .contentShape(Circle())
     }
 
-    private func symbolRing(_ symbol: String, color: Color, active: Bool, animation: IconAnimation = .none) -> some View {
+    private func symbolRing(_ symbol: String, now: Date, active: Bool, animation: IconAnimation = .none) -> some View {
         ZStack {
-            Circle().stroke(color.opacity(active ? 1 : 0.35), lineWidth: max(2, 2 * scale))
+            Circle().stroke(tint(now, active ? 1 : 0.35), lineWidth: max(2, 2 * scale))
             Image(systemName: symbol)
                 .font(.system(size: px(7), weight: .bold))
-                .foregroundStyle(color)
+                .foregroundStyle(tint(now))
                 .animatedSymbol(animation)
                 // A play triangle's weight sits left of its box; nudge it so it looks centred.
                 .offset(x: symbol.hasPrefix("play") ? 0.8 * scale : 0)
@@ -360,12 +413,13 @@ struct NotchItemView: View {
         .contentShape(Circle())
     }
 
-    private func accountView(_ account: Account) -> some View {
+    private func accountView(_ account: Account, now: Date) -> some View {
         let window = state.readings[account.id]?.headline
         let layout = vertical ? AnyLayout(VStackLayout(spacing: px(3))) : AnyLayout(HStackLayout(spacing: px(5)))
         return layout {
             ZStack(alignment: .topTrailing) {
-                UsageRing(fraction: window?.fraction ?? 0, color: account.color, size: px(18), lineWidth: 3.5 * scale)
+                UsageRing(fraction: window?.fraction ?? 0, color: account.color, size: px(18), lineWidth: 3.5 * scale,
+                          style: account.colorHex == NotchItem.glowColor ? tint(now, hex: NotchItem.glowColor) : nil)
                 ActivityDot(counts: state.counts(for: account.id))
                     .scaleEffect(scale)
                     .offset(x: px(3), y: px(-2))
@@ -378,13 +432,15 @@ struct NotchItemView: View {
         .help(account.label)
     }
 
-    private func badge(symbol: String, count: Int, color: Color, active: Bool,
+    private func badge(symbol: String, count: Int, now: Date, override: Color? = nil, active: Bool,
                        animation: IconAnimation = .none, bounceOn: Int = 0) -> some View {
         let layout = vertical ? AnyLayout(VStackLayout(spacing: px(2))) : AnyLayout(HStackLayout(spacing: px(4)))
+        let fill = override.map { AnyShapeStyle($0) } ?? tint(now)
+        let ring = override.map { AnyShapeStyle($0.opacity(active ? 1 : 0.3)) } ?? tint(now, active ? 1 : 0.3)
         return layout {
             ZStack {
-                Circle().stroke(color.opacity(active ? 1 : 0.3), lineWidth: max(2, 2 * scale))
-                Image(systemName: symbol).font(.system(size: px(7), weight: .bold)).foregroundStyle(color)
+                Circle().stroke(ring, lineWidth: max(2, 2 * scale))
+                Image(systemName: symbol).font(.system(size: px(7), weight: .bold)).foregroundStyle(fill)
                     .animatedSymbol(animation)
                     // One bounce whenever `bounceOn` changes (e.g. a new copy).
                     .symbolEffect(.bounce, value: look.animatedIcons ? bounceOn : 0)

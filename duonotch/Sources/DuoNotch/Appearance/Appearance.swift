@@ -2,7 +2,7 @@ import SwiftUI
 import Combine
 
 enum NotchTheme: String, Codable, CaseIterable, Identifiable {
-    case black, aurora, sunset, neon, ocean, forest, lavender, dusk
+    case black, aurora, sunset, neon, ocean, forest, lavender, dusk, custom
 
     var id: String { rawValue }
     var name: String {
@@ -15,12 +15,21 @@ enum NotchTheme: String, Codable, CaseIterable, Identifiable {
         case .forest: return "Forest — calm"
         case .lavender: return "Lavender — calm"
         case .dusk: return "Dusk — calm"
+        case .custom: return "Custom — your colours"
         }
     }
     var calm: Bool { [.ocean, .forest, .lavender, .dusk].contains(self) }
 
     /// Nine mesh colours, row by row (3×3).
+    @MainActor
     var colors: [Color] {
+        if self == .custom {
+            let hexes = AppearanceStore.shared.customHexes
+            let a = Color(hex: hexes[0]), b = Color(hex: hexes[1]), c = Color(hex: hexes[2])
+            let dark = Color(hex: AppearanceStore.darken(hexes[1], 0.12))
+            let mid = Color(hex: AppearanceStore.darken(hexes[0], 0.35))
+            return [dark, mid, dark, a, b, c, dark, Color(hex: AppearanceStore.darken(hexes[2], 0.35)), dark]
+        }
         func c(_ hex: String) -> Color { Color(hex: hex) }
         switch self {
         case .black: return Array(repeating: .black, count: 9)
@@ -31,12 +40,14 @@ enum NotchTheme: String, Codable, CaseIterable, Identifiable {
         case .forest: return [c("#08130D"), c("#163324"), c("#08130D"), c("#1E4430"), c("#2D5B3E"), c("#183A28"), c("#08130D"), c("#11281B"), c("#08130D")]
         case .lavender: return [c("#110D1A"), c("#2A2142"), c("#110D1A"), c("#3A2C5C"), c("#4E3D78"), c("#33285A"), c("#110D1A"), c("#221A36"), c("#110D1A")]
         case .dusk:   return [c("#0F0D14"), c("#2B2233"), c("#0F0D14"), c("#3D2B3D"), c("#4A3550"), c("#2E2640"), c("#0F0D14"), c("#1E1A28"), c("#0F0D14")]
+        case .custom: return []
         }
     }
 
     /// The icon that goes with this theme.
     var symbol: String {
         switch self {
+        case .custom: return "paintpalette.fill"
         case .black: return "sparkles"
         case .aurora: return "sparkles"
         case .sunset: return "sun.horizon.fill"
@@ -51,6 +62,7 @@ enum NotchTheme: String, Codable, CaseIterable, Identifiable {
     /// The movement that goes with this theme.
     var iconAnimation: IconAnimation {
         switch self {
+        case .custom: return .colour
         case .black, .aurora: return .breathe
         case .sunset: return .pulse
         case .neon: return .bounce
@@ -61,15 +73,41 @@ enum NotchTheme: String, Codable, CaseIterable, Identifiable {
     }
 
     /// Bright colours from the theme for filling icons.
+    @MainActor
     var accentColors: [Color] {
         switch self {
+        case .custom: return AppearanceStore.shared.customHexes.map { Color(hex: $0) } + [Color(hex: AppearanceStore.shared.customHexes[0])]
         case .black: return [Color(hex: "#FF6BA8"), Color(hex: "#4C9BFF"), Color(hex: "#3FD08A"), Color(hex: "#F5C542")]
         default: return [colors[3], colors[4], colors[5], colors[1]]
         }
     }
 
     /// Seconds per full drift cycle: calm themes move slowly.
-    var period: Double { calm ? 26 : 11 }
+    @MainActor
+    var period: Double { (calm ? 26 : 11) / AppearanceStore.shared.animationSpeed }
+}
+
+enum OpenStyle: String, Codable, CaseIterable, Identifiable {
+    case drop, fade, zoom, slide
+    var id: String { rawValue }
+    var name: String {
+        switch self {
+        case .drop: return "Drop down"
+        case .fade: return "Fade"
+        case .zoom: return "Zoom"
+        case .slide: return "Slide"
+        }
+    }
+
+    /// The panel's entrance, from the edge the notch sits on.
+    func transition(edge: Edge) -> AnyTransition {
+        switch self {
+        case .drop: return .opacity.combined(with: .move(edge: edge))
+        case .fade: return .opacity
+        case .zoom: return .opacity.combined(with: .scale(scale: 0.85, anchor: edge == .top ? .top : (edge == .leading ? .leading : .trailing)))
+        case .slide: return .move(edge: edge)
+        }
+    }
 }
 
 enum OpenAnimation: String, Codable, CaseIterable, Identifiable {
@@ -106,6 +144,22 @@ final class AppearanceStore: ObservableObject {
     @Published var logoAnimation: IconAnimation { didSet { save(logoAnimation.rawValue, "appearance.logoAnimation") } }
     /// Use the theme's own icon, colours and movement for the notch icon.
     @Published var logoFollowsTheme: Bool { didSet { save(logoFollowsTheme, "appearance.logoFollowsTheme") } }
+    /// Three colours for the Custom theme.
+    @Published var customHexes: [String] { didSet { save(customHexes, "appearance.customHexes") } }
+    /// How the panel appears when the notch opens.
+    @Published var openStyle: OpenStyle { didSet { save(openStyle.rawValue, "appearance.openStyle") } }
+    /// 0.5 (slow) … 2 (fast): open/close, theme drift and glow speed.
+    @Published var animationSpeed: Double { didSet { save(animationSpeed, "appearance.speed") } }
+
+    var openAnimationValue: Animation { openAnimation.animation.speed(animationSpeed) }
+
+    static func darken(_ hex: String, _ factor: Double) -> String {
+        let c = Color(hex: hex).hexString
+        var value: UInt64 = 0
+        Scanner(string: String(c.dropFirst())).scanHexInt64(&value)
+        let r = Double((value >> 16) & 0xFF) * factor, g = Double((value >> 8) & 0xFF) * factor, b = Double(value & 0xFF) * factor
+        return String(format: "#%02X%02X%02X", Int(r), Int(g), Int(b))
+    }
 
     var effectiveLogoSymbol: String { logoFollowsTheme ? theme.symbol : logoSymbol }
     var effectiveLogoAnimation: IconAnimation { logoFollowsTheme ? theme.iconAnimation : logoAnimation }
@@ -127,6 +181,10 @@ final class AppearanceStore: ObservableObject {
         animatedIcons = d.object(forKey: "appearance.animatedIcons") as? Bool ?? true
         logoAnimation = IconAnimation(rawValue: d.string(forKey: "appearance.logoAnimation") ?? "") ?? .breathe
         logoFollowsTheme = d.bool(forKey: "appearance.logoFollowsTheme")
+        customHexes = (d.stringArray(forKey: "appearance.customHexes")).flatMap { $0.count == 3 ? $0 : nil } ?? ["#FF6BA8", "#7B3FE4", "#2FD1C8"]
+        openStyle = OpenStyle(rawValue: d.string(forKey: "appearance.openStyle") ?? "") ?? .drop
+        let speed = d.double(forKey: "appearance.speed")
+        animationSpeed = speed > 0 ? speed : 1
         openAnimation = OpenAnimation(rawValue: d.string(forKey: "appearance.animation") ?? "") ?? .spring
         logoSymbol = d.string(forKey: "appearance.logoSymbol") ?? "sparkles"
         logoImagePath = d.string(forKey: "appearance.logoImage")
@@ -141,7 +199,8 @@ final class AppearanceStore: ObservableObject {
 
     /// Where the glow is right now (degrees), so dividers move in step.
     static func glowAngle(at date: Date) -> Double {
-        date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 8) / 8 * 360
+        let period = 8 / AppearanceStore.shared.animationSpeed
+        return date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: period) / period * 360
     }
 
     var logoImage: NSImage? {

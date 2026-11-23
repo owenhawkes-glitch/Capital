@@ -3,6 +3,19 @@ import Combine
 
 /// A market symbol. Prices come from Yahoo Finance's public chart feed;
 /// clicking opens the TradingView chart.
+enum TickerDisplay: String, Codable, CaseIterable, Identifiable {
+    case price, change, priceAndChange, profit
+    var id: String { rawValue }
+    var name: String {
+        switch self {
+        case .price: return "Price"
+        case .change: return "% change"
+        case .priceAndChange: return "Price and % change"
+        case .profit: return "P/L of my position"
+        }
+    }
+}
+
 struct Ticker: Identifiable, Codable, Equatable {
     var id: UUID = UUID()
     var name: String
@@ -10,6 +23,34 @@ struct Ticker: Identifiable, Codable, Equatable {
     var symbol: String
     /// TradingView symbol, e.g. FX:EURUSD. Empty = worked out from `symbol`.
     var tradingView: String = ""
+    /// Name colour; nil = the notch item's colour.
+    var colorHex: String?
+    /// What the closed notch shows for this ticker.
+    var display: TickerDisplay?
+    /// An open position, for live P/L.
+    var position: Position?
+
+    struct Position: Codable, Equatable {
+        var long: Bool = true
+        var entry: Double = 0
+        var size: Double = 0
+    }
+
+    /// Quote currency for P/L (FX pairs only; otherwise empty).
+    var quoteCurrency: String {
+        let s = symbol.uppercased()
+        if s.hasSuffix("=X") {
+            let pair = s.replacingOccurrences(of: "=X", with: "")
+            return pair.count == 6 ? String(pair.suffix(3)) : ""
+        }
+        if s.hasSuffix("-USD") { return "USD" }
+        return ""
+    }
+
+    func profit(at price: Double) -> Double? {
+        guard let p = position, p.size != 0, p.entry != 0 else { return nil }
+        return (price - p.entry) * p.size * (p.long ? 1 : -1)
+    }
 
     var tradingViewSymbol: String {
         if !tradingView.isEmpty { return tradingView }
@@ -46,6 +87,20 @@ final class MarketStore: ObservableObject {
         }
     }
     @Published private(set) var quotes: [String: Quote] = [:]
+    /// Colours for rising and falling prices.
+    @Published var upHex: String = UserDefaults.standard.string(forKey: "markets.up") ?? "#3FD08A" {
+        didSet { UserDefaults.standard.set(upHex, forKey: "markets.up") }
+    }
+    @Published var downHex: String = UserDefaults.standard.string(forKey: "markets.down") ?? "#FF5A5F" {
+        didSet { UserDefaults.standard.set(downHex, forKey: "markets.down") }
+    }
+    /// Show TradingView's own live widget in the Markets card.
+    @Published var useTradingViewWidget: Bool = UserDefaults.standard.bool(forKey: "markets.tvWidget") {
+        didSet { UserDefaults.standard.set(useTradingViewWidget, forKey: "markets.tvWidget") }
+    }
+
+    var upColor: Color { Color(hex: upHex) }
+    var downColor: Color { Color(hex: downHex) }
     @Published private(set) var updatedAt: Date?
 
     static let presets: [Ticker] = [
@@ -110,6 +165,11 @@ final class MarketStore: ObservableObject {
         return Quote(price: price, previousClose: previous, closes: closes)
     }
 
+    static func formatProfit(_ value: Double, currency: String) -> String {
+        let text = value.formatted(.number.precision(.fractionLength(abs(value) >= 1000 ? 0 : 2)).sign(strategy: .always()))
+        return currency.isEmpty ? text : "\(text) \(currency)"
+    }
+
     static func format(_ price: Double) -> String {
         let digits = price < 10 ? 4 : (price < 1000 ? 2 : 0)
         return price.formatted(.number.precision(.fractionLength(digits)))
@@ -145,35 +205,63 @@ struct MarketsCard: View {
                 HStack {
                     Text("Markets").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
                     Spacer()
-                    if let updated = store.updatedAt {
+                    Button(store.useTradingViewWidget ? "TradingView" : "Built-in") { store.useTradingViewWidget.toggle() }
+                        .buttonStyle(.plain).font(.system(size: 8)).foregroundStyle(.secondary)
+                        .help("Switch between TradingView's live widget and the built-in list")
+                    if !store.useTradingViewWidget, let updated = store.updatedAt {
                         Text(updated.formatted(date: .omitted, time: .shortened)).font(.system(size: 8)).foregroundStyle(.secondary)
                     }
                 }
-                ForEach(store.tickers) { ticker in
-                    let quote = store.quotes[ticker.symbol]
-                    let up = (quote?.change ?? 0) >= 0
-                    Button { store.open(ticker) } label: {
-                        HStack(spacing: 8) {
-                            Text(ticker.name).font(.system(size: 10, weight: .semibold)).lineLimit(1)
-                                .frame(width: 64, alignment: .leading)
-                            Sparkline(values: quote?.closes ?? [], color: up ? .green : .red)
-                                .frame(height: 16)
-                            Text(quote.map { MarketStore.format($0.price) } ?? "–")
-                                .font(.system(size: 10, weight: .medium, design: .rounded)).monospacedDigit()
-                                .frame(width: 66, alignment: .trailing)
-                            Text(quote.map { String(format: "%+.2f%%", $0.change) } ?? "")
-                                .font(.system(size: 9, weight: .semibold, design: .rounded)).monospacedDigit()
-                                .foregroundStyle(up ? Color.green : Color.red)
-                                .frame(width: 50, alignment: .trailing)
-                        }
-                        .contentShape(Rectangle())
+                if store.useTradingViewWidget {
+                    TradingViewWidget(symbols: store.tickers.map { ($0.tradingViewSymbol, $0.name) })
+                        .frame(height: CGFloat(max(store.tickers.count, 1)) * 38 + 34)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                } else {
+                    ForEach(store.tickers) { ticker in
+                        row(ticker)
                     }
-                    .buttonStyle(.plain)
-                    .help("Open \(ticker.tradingViewSymbol) on TradingView")
-                    .reorderSource(id: ticker.id.uuidString)
-                    .reorderTarget(id: ticker.id.uuidString) { store.move(dragged: $0, onto: $1) }
                 }
             }
         }
+    }
+
+    private func row(_ ticker: Ticker) -> some View {
+        let quote = store.quotes[ticker.symbol]
+        let up = (quote?.change ?? 0) >= 0
+        let trend = up ? store.upColor : store.downColor
+        return Button { store.open(ticker) } label: {
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 8) {
+                    Text(ticker.name).font(.system(size: 10, weight: .semibold)).lineLimit(1)
+                        .foregroundStyle(ticker.colorHex.map { Color(hex: $0) } ?? Color.white)
+                        .frame(width: 64, alignment: .leading)
+                    Sparkline(values: quote?.closes ?? [], color: trend)
+                        .frame(height: 16)
+                    Text(quote.map { MarketStore.format($0.price) } ?? "–")
+                        .font(.system(size: 10, weight: .medium, design: .rounded)).monospacedDigit()
+                        .frame(width: 66, alignment: .trailing)
+                    Text(quote.map { String(format: "%+.2f%%", $0.change) } ?? "")
+                        .font(.system(size: 9, weight: .semibold, design: .rounded)).monospacedDigit()
+                        .foregroundStyle(trend)
+                        .frame(width: 50, alignment: .trailing)
+                }
+                if let quote, let pl = ticker.profit(at: quote.price), let pos = ticker.position {
+                    HStack(spacing: 6) {
+                        Text("\(pos.long ? "Long" : "Short") \(pos.size.formatted()) @ \(MarketStore.format(pos.entry))")
+                            .font(.system(size: 8)).foregroundStyle(.secondary)
+                        Spacer()
+                        Text("P/L " + MarketStore.formatProfit(pl, currency: ticker.quoteCurrency))
+                            .font(.system(size: 9, weight: .bold, design: .rounded)).monospacedDigit()
+                            .foregroundStyle(pl >= 0 ? store.upColor : store.downColor)
+                    }
+                    .padding(.leading, 72)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("Open \(ticker.tradingViewSymbol) on TradingView")
+        .reorderSource(id: ticker.id.uuidString)
+        .reorderTarget(id: ticker.id.uuidString) { store.move(dragged: $0, onto: $1) }
     }
 }

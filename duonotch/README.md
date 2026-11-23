@@ -309,7 +309,12 @@ Arrange) and, where it makes sense, a notch item (Settings → Notch).
   Open-Meteo (no account, no location permission)
 - **Markets**: FX, futures, indices, stocks and crypto from Yahoo Finance's
   public feed (EURUSD=X, GC=F, ^GSPC, AAPL, BTC-USD), refreshed every
-  minute, with a sparkline and % change. Click to open the TradingView chart
+  minute, with a sparkline and % change. Click to open the TradingView chart.
+  Per ticker: its own colour, what the notch shows (price, % change, both,
+  or **P/L**), an optional position (long/short, entry, size) for live P/L
+  in the quote currency, and the TradingView symbol. Rising/falling colours
+  are yours to pick, and the Markets card can show **TradingView's own live
+  widget** instead of the built-in list
 - **Quick links**: any URL, with a one-click set of Google links
 - **Live window**: a live mirror of another app's window, e.g. a Spotify
   video podcast or a Parsec session. Click Spotify, Parsec or Other… and
@@ -326,7 +331,12 @@ on each new copy, and a notch icon that can pulse, breathe, bounce, wiggle,
 rotate or colour-cycle, or **match the theme** (its own icon in the theme's
 colours). One switch turns them off; they stay still with Reduce Motion.
 
-Settings → **Appearance**: themes (optionally black while closed and
+Every notch item (Claude rings included) can use any colour from the
+colour picker, or **Match notch glow** to move in step with the glowing edge.
+
+Settings → **Appearance**: themes (including a **Custom** theme from three
+colours you pick), open style (drop down, fade, zoom, slide), animation
+speed, (optionally black while closed and
 coloured only when open), (Black, or slowly moving colourful
 Aurora / Sunset / Neon and calm Ocean / Forest / Lavender / Dusk), a glowing
 edge, the open/close animation (Spring, Smooth, Bouncy, Snappy, Gentle) and

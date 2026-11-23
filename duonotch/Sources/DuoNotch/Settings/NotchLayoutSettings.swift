@@ -86,12 +86,18 @@ struct NotchLayoutSettings: View {
                             Text(name)
                                 .lineLimit(1)
                                 .frame(maxWidth: .infinity, alignment: .leading)
+                            ColorPicker("", selection: hexColorBinding(colorBinding(for: $item)), supportsOpacity: false)
+                                .labelsHidden()
+                                .frame(width: 34)
+                                .disabled(colorBinding(for: $item).wrappedValue == NotchItem.glowColor)
                             Picker("", selection: colorBinding(for: $item)) {
-                                if case .divider = item.kind {
-                                    Text("Match notch glow").tag(NotchItem.glowColor)
-                                }
+                                Text("Match notch glow").tag(NotchItem.glowColor)
                                 ForEach(AccountPalette.presets) { preset in
                                     Text(preset.name).tag(preset.hex)
+                                }
+                                let current = colorBinding(for: $item).wrappedValue
+                                if current != NotchItem.glowColor && !AccountPalette.presets.contains(where: { $0.hex == current }) {
+                                    Text("Custom").tag(current)
                                 }
                             }
                             .labelsHidden()

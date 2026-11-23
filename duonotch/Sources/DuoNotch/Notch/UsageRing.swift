@@ -6,6 +6,8 @@ struct UsageRing: View {
     var color: Color
     var size: CGFloat = 18
     var lineWidth: CGFloat = 3.5
+    /// Overrides the colour (e.g. the notch glow) until near the limit.
+    var style: AnyShapeStyle? = nil
 
     private var tint: Color {
         if fraction >= 0.95 { return .red }
@@ -14,12 +16,13 @@ struct UsageRing: View {
     }
 
     var body: some View {
-        ZStack {
+        let fill: AnyShapeStyle = (style != nil && fraction < 0.8) ? style! : AnyShapeStyle(tint)
+        return ZStack {
             Circle()
-                .stroke(tint.opacity(0.22), lineWidth: lineWidth)
+                .stroke(style != nil && fraction < 0.8 ? AnyShapeStyle(Color.white.opacity(0.15)) : AnyShapeStyle(tint.opacity(0.22)), lineWidth: lineWidth)
             Circle()
                 .trim(from: 0, to: max(min(fraction, 1), 0.001))
-                .stroke(tint, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                .stroke(fill, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                 .rotationEffect(.degrees(-90))
         }
         .frame(width: size, height: size)

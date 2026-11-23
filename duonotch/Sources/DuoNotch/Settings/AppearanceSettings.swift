@@ -24,6 +24,17 @@ struct AppearanceSettings: View {
                         .buttonStyle(.plain)
                     }
                 }
+                if look.theme == .custom {
+                    HStack {
+                        Text("Custom colours")
+                        ForEach(0..<3, id: \.self) { i in
+                            ColorPicker("", selection: hexColorBinding(Binding(
+                                get: { look.customHexes[i] },
+                                set: { var h = look.customHexes; h[i] = $0; look.customHexes = h })), supportsOpacity: false)
+                                .labelsHidden()
+                        }
+                    }
+                }
                 Toggle("Keep the closed notch black; use the theme only when it opens", isOn: $look.blackWhenClosed)
                 Toggle("Glowing edge that slowly travels around the notch", isOn: $look.glowBorder)
             }
@@ -32,6 +43,19 @@ struct AppearanceSettings: View {
                     ForEach(OpenAnimation.allCases) { Text($0.name).tag($0) }
                 }
                 .pickerStyle(.segmented)
+                Picker("Open style", selection: $look.openStyle) {
+                    ForEach(OpenStyle.allCases) { Text($0.name).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                HStack {
+                    Text("Speed")
+                    Slider(value: $look.animationSpeed, in: 0.5...2, step: 0.25) {
+                        EmptyView()
+                    } minimumValueLabel: { Text("Slow").font(.caption) } maximumValueLabel: { Text("Fast").font(.caption) }
+                    Text(String(format: "%.2g×", look.animationSpeed)).monospacedDigit().frame(width: 36)
+                }
+                Text("Speed applies to opening and closing, the theme's movement and the glow.")
+                    .font(.caption).foregroundStyle(.secondary)
                 Toggle("Animated icons (music bars while playing, weather, chats, clipboard, notch icon)", isOn: $look.animatedIcons)
                 Text("Icons stay still when \"Reduce motion\" is on in macOS Accessibility settings.")
                     .font(.caption).foregroundStyle(.secondary)
@@ -188,15 +212,68 @@ struct WidgetsSettings: View {
             }
 
             Section("Markets") {
+                HStack {
+                    Text("Rising")
+                    ColorPicker("", selection: hexColorBinding($markets.upHex), supportsOpacity: false).labelsHidden()
+                    Text("Falling")
+                    ColorPicker("", selection: hexColorBinding($markets.downHex), supportsOpacity: false).labelsHidden()
+                    Button("Swap") { swap(&markets.upHex, &markets.downHex) }
+                    Spacer()
+                    Toggle("Show TradingView's live widget in the Markets card", isOn: $markets.useTradingViewWidget)
+                }
                 ForEach($markets.tickers) { $ticker in
-                    HStack {
-                        TextField("Name", text: $ticker.name).frame(width: 100)
-                        TextField("Symbol", text: $ticker.symbol).frame(width: 110)
-                        TextField("TradingView (optional)", text: $ticker.tradingView, prompt: Text(ticker.tradingViewSymbol))
-                        Text(markets.quotes[ticker.symbol].map { MarketStore.format($0.price) } ?? "–")
-                            .monospacedDigit().frame(width: 70, alignment: .trailing)
-                        Button { markets.tickers.removeAll { $0.id == ticker.id } } label: { Image(systemName: "minus.circle") }.buttonStyle(.plain)
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            ColorPicker("", selection: hexColorBinding(Binding(
+                                get: { ticker.colorHex ?? "#E6E6E6" }, set: { ticker.colorHex = $0 })), supportsOpacity: false)
+                                .labelsHidden()
+                            Picker("", selection: Binding(get: { ticker.colorHex ?? "" }, set: { ticker.colorHex = $0.isEmpty ? nil : $0 })) {
+                                Text("Item colour").tag("")
+                                Text("Match notch glow").tag(NotchItem.glowColor)
+                                if let hex = ticker.colorHex, hex != NotchItem.glowColor { Text("Custom").tag(hex) }
+                            }
+                            .labelsHidden().frame(width: 140)
+                            TextField("Name", text: $ticker.name).frame(width: 90)
+                            TextField("Yahoo symbol", text: $ticker.symbol).frame(width: 100)
+                            TextField("TradingView symbol", text: $ticker.tradingView, prompt: Text(ticker.tradingViewSymbol))
+                                .help("The symbol used for TradingView links and the TradingView widget, e.g. FX:EURUSD, OANDA:XAUUSD, BINANCE:BTCUSDT")
+                            Text(markets.quotes[ticker.symbol].map { MarketStore.format($0.price) } ?? "–")
+                                .monospacedDigit().frame(width: 70, alignment: .trailing)
+                            Button { markets.tickers.removeAll { $0.id == ticker.id } } label: { Image(systemName: "minus.circle") }.buttonStyle(.plain)
+                        }
+                        HStack {
+                            Picker("In the notch", selection: Binding(get: { ticker.display ?? .price }, set: { ticker.display = $0 })) {
+                                ForEach(TickerDisplay.allCases) { Text($0.name).tag($0) }
+                            }
+                            .frame(width: 270)
+                            Toggle("Position", isOn: Binding(
+                                get: { ticker.position != nil },
+                                set: { ticker.position = $0 ? Ticker.Position(entry: markets.quotes[ticker.symbol]?.price ?? 0) : nil }))
+                                .toggleStyle(.checkbox)
+                            if ticker.position != nil {
+                                Picker("", selection: Binding(get: { ticker.position?.long ?? true }, set: { ticker.position?.long = $0 })) {
+                                    Text("Long").tag(true)
+                                    Text("Short").tag(false)
+                                }
+                                .pickerStyle(.segmented).labelsHidden().frame(width: 110)
+                                TextField("Entry", value: Binding(get: { ticker.position?.entry ?? 0 }, set: { ticker.position?.entry = $0 }),
+                                          format: .number.precision(.fractionLength(0...5)))
+                                    .frame(width: 80)
+                                TextField("Size", value: Binding(get: { ticker.position?.size ?? 0 }, set: { ticker.position?.size = $0 }),
+                                          format: .number)
+                                    .frame(width: 90)
+                                    .help("Units, e.g. 100000 for one standard FX lot")
+                                if let q = markets.quotes[ticker.symbol], let pl = ticker.profit(at: q.price) {
+                                    Text(MarketStore.formatProfit(pl, currency: ticker.quoteCurrency))
+                                        .monospacedDigit()
+                                        .foregroundStyle(pl >= 0 ? markets.upColor : markets.downColor)
+                                }
+                            }
+                            Spacer()
+                        }
+                        .font(.caption)
                     }
+                    .padding(.vertical, 2)
                 }
                 HStack {
                     TextField("Name", text: $newTicker.name).frame(width: 100)
@@ -220,7 +297,7 @@ struct WidgetsSettings: View {
                     }
                     .fixedSize()
                 }
-                Text("Prices from Yahoo Finance's public feed (FX like EURUSD=X, futures like GC=F, indices like ^GSPC, crypto like BTC-USD), refreshed every minute and delayed for some markets. Clicking a ticker opens its TradingView chart.")
+                Text("Built-in prices come from Yahoo Finance (EURUSD=X, GC=F, ^GSPC, AAPL, BTC-USD), refreshed every minute and delayed for some markets. TradingView doesn't sell its prices to other apps, but its free widget can show its live quotes in the Markets card using each ticker's TradingView symbol. P/L is in the pair's quote currency (e.g. USD for EUR/USD).")
                     .font(.caption).foregroundStyle(.secondary)
             }
 

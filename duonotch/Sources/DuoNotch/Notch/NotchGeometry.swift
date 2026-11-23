@@ -64,12 +64,13 @@ enum NotchMetrics {
     }
 
     static func expandedHeight(_ g: NotchGeometry, layout: NotchLayoutInfo) -> CGFloat {
-        var height = g.notchHeight + 186
+        // Account cards with two usage rows + sessions line, plus footer.
+        var height = g.notchHeight + 150
         if layout.sessionRows > 0 {
-            height += CGFloat(layout.sessionRows) * sessionRowHeight + 8
+            height += CGFloat(layout.sessionRows) * sessionRowHeight + 6
         }
         if layout.showsProjects {
-            height += projectsRowHeight + 6
+            height += projectsRowHeight + 4
         }
         let visible = min(layout.pendingCount, maxVisibleApprovals)
         if visible > 0 {

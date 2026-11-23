@@ -20,6 +20,11 @@ struct PanelSettings: View {
             }())
                 .font(.caption).foregroundStyle(.secondary)
 
+            Picker("App icons in the top bar", selection: $state.appBarAlignment) {
+                ForEach(BarAlignment.allCases) { Text($0.name).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 360)
             Toggle("Compact: narrower columns so the open notch takes less space", isOn: $state.panelCompact)
             Picker("Width", selection: $state.panelWidth) {
                 Text("Compact").tag(480.0)

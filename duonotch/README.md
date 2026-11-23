@@ -230,8 +230,14 @@ notch Small, Normal, Large or Extra large.
 
 Each position (top, left, right, floating) keeps its **own items, order
 and spacing**, so the top can show apps and the left edge tickers. Add
-**spacers** and **dividers** to separate groups, set the gap between icons,
-and save named **presets** to apply anywhere (also in the right-click menu).
+**spacers** and **dividers** to separate groups (dividers can **match the
+notch glow**, moving in step with it), set the gap between icons, and save
+named **presets** to apply anywhere (also in the right-click menu). To edit
+a preset: apply it, change the items, then **Save changes**; presets can
+also be renamed or overwritten from their row.
+
+The open notch's top bar centres its app icons by default; Settings →
+Panel layout moves them left or right.
 
 Settings → **Notch** lists everything that can sit in the closed notch:
 each Claude account's usage ring, each pinned app, a clipboard counter and

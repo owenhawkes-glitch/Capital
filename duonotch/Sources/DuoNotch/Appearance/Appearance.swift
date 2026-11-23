@@ -132,6 +132,18 @@ final class AppearanceStore: ObservableObject {
         logoImagePath = d.string(forKey: "appearance.logoImage")
     }
 
+    /// The colours travelling around the notch edge (also used by dividers).
+    var glowColors: [Color] {
+        theme == .black
+            ? [Color(hex: "#FF6BA8"), Color(hex: "#4C9BFF"), Color(hex: "#3FD08A"), Color(hex: "#F5C542"), Color(hex: "#FF6BA8")]
+            : theme.colors.filter { $0 != .black } + [theme.colors[1]]
+    }
+
+    /// Where the glow is right now (degrees), so dividers move in step.
+    static func glowAngle(at date: Date) -> Double {
+        date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 8) / 8 * 360
+    }
+
     var logoImage: NSImage? {
         guard let logoImagePath else { return nil }
         return NSImage(contentsOfFile: logoImagePath)
@@ -186,10 +198,8 @@ struct GlowBorder<S: Shape>: View {
     var body: some View {
         if look.glowBorder {
             TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
-                let angle = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 8) / 8 * 360
-                let colors = look.theme == .black
-                    ? [Color(hex: "#FF6BA8"), Color(hex: "#4C9BFF"), Color(hex: "#3FD08A"), Color(hex: "#F5C542"), Color(hex: "#FF6BA8")]
-                    : look.theme.colors.filter { $0 != .black } + [look.theme.colors[1]]
+                let angle = AppearanceStore.glowAngle(at: context.date)
+                let colors = look.glowColors
                 shape
                     .stroke(AngularGradient(colors: colors, center: .center, angle: .degrees(angle)), lineWidth: 1.5)
                     .blur(radius: 0.6)
@@ -209,6 +219,26 @@ struct ThemeGradientFill: ViewModifier {
             let angle = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 10) / 10 * 360
             let colors = look.theme.accentColors
             content.foregroundStyle(AngularGradient(colors: colors + [colors[0]], center: .center, angle: .degrees(angle)))
+        }
+    }
+}
+
+/// Fills a shape with the notch glow's bright colours, sliding along it in
+/// step with the glow around the notch.
+struct GlowFill<S: Shape>: View {
+    let shape: S
+    @ObservedObject private var look = AppearanceStore.shared
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !look.animatedIcons)) { context in
+            let phase = AppearanceStore.glowAngle(at: context.date) / 360
+            let bright = look.theme.accentColors
+            let colors = bright + bright + [bright[0]]
+            shape
+                .fill(LinearGradient(colors: colors,
+                                     startPoint: UnitPoint(x: 0.5, y: -phase * 2),
+                                     endPoint: UnitPoint(x: 0.5, y: 2 - phase * 2)))
+                .shadow(color: bright[Int(phase * Double(bright.count)) % bright.count].opacity(0.8), radius: 2.5)
         }
     }
 }

@@ -122,3 +122,9 @@ enum PanelMetrics {
     static let spacing: CGFloat = 10
     static let sidePadding: CGFloat = 14
 }
+
+enum BarAlignment: String, CaseIterable, Identifiable {
+    case leading, center, trailing
+    var id: String { rawValue }
+    var name: String { self == .leading ? "Left" : (self == .center ? "Centre" : "Right") }
+}

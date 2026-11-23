@@ -38,32 +38,39 @@ struct NotchLayoutSettings: View {
                         TextField("Name, e.g. Trading or Coding", text: $presetName)
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 240)
-                        Button("Save current layout") {
+                        Button("Save as new preset") {
                             state.savePreset(named: presetName)
                             presetName = ""
                         }
                         Spacer()
+                        if let active = state.activePreset {
+                            Button("Save changes to \u{201C}\(active.name)\u{201D}") { state.updatePreset(active) }
+                                .keyboardShortcut("s", modifiers: [.command])
+                        }
                     }
                     if state.notchPresets.isEmpty {
-                        Text("Save a layout, then apply it to any position with one click.")
+                        Text("Save a layout, then apply it to any position with one click. To edit one later: apply it, change the items below, then click Save changes.")
                             .font(.caption).foregroundStyle(.secondary)
-                    } else {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                ForEach(state.notchPresets) { preset in
-                                    HStack(spacing: 6) {
-                                        Button(preset.name) { state.applyPreset(preset) }
-                                            .help("Apply to \(state.placement.name)")
-                                        Button { state.deletePreset(preset) } label: {
-                                            Image(systemName: "xmark.circle.fill")
-                                        }
-                                        .buttonStyle(.plain)
-                                        .foregroundStyle(.secondary)
-                                        .help("Delete preset")
-                                    }
-                                }
-                            }
+                    }
+                    ForEach($state.notchPresets) { $preset in
+                        HStack(spacing: 8) {
+                            Image(systemName: state.activePresetID == preset.id ? "checkmark.circle.fill" : "circle")
+                                .foregroundStyle(state.activePresetID == preset.id ? Color.accentColor : Color.secondary)
+                            TextField("Name", text: $preset.name)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 180)
+                            Text("\(preset.items.filter(\.enabled).count) items")
+                                .font(.caption).foregroundStyle(.secondary)
+                            Spacer()
+                            Button("Apply") { state.applyPreset(preset) }
+                                .help("Load this layout into \(state.placement.name) to use or edit it")
+                            Button("Overwrite with current") { state.updatePreset(preset) }
+                                .help("Replace this preset with the layout below")
+                            Button { state.deletePreset(preset) } label: { Image(systemName: "trash") }
+                                .buttonStyle(.plain)
+                                .help("Delete preset")
                         }
+                        .controlSize(.small)
                     }
                 }
                 .padding(4)
@@ -80,6 +87,9 @@ struct NotchLayoutSettings: View {
                                 .lineLimit(1)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             Picker("", selection: colorBinding(for: $item)) {
+                                if case .divider = item.kind {
+                                    Text("Match notch glow").tag(NotchItem.glowColor)
+                                }
                                 ForEach(AccountPalette.presets) { preset in
                                     Text(preset.name).tag(preset.hex)
                                 }
@@ -186,7 +196,11 @@ struct NotchLayoutSettings: View {
         case .spacer:
             Image(systemName: "arrow.left.and.right").foregroundStyle(.secondary)
         case .divider:
-            Capsule().fill(Color(hex: item.colorHex)).frame(width: 2, height: 16)
+            if item.colorHex == NotchItem.glowColor {
+                GlowFill(shape: Capsule()).frame(width: 3, height: 16)
+            } else {
+                Capsule().fill(Color(hex: item.colorHex)).frame(width: 2, height: 16)
+            }
         case .logo:
             Image(systemName: AppearanceStore.shared.logoSymbol).foregroundStyle(Color(hex: item.colorHex))
         case .link(let id):

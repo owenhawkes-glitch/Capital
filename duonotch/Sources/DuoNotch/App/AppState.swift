@@ -929,7 +929,8 @@ final class AppState: ObservableObject {
 
     func addSeparator(divider: Bool) {
         let kind: NotchItemKind = divider ? .divider(UUID()) : .spacer(UUID())
-        notchItems.append(NotchItem(kind: kind, side: .right, enabled: true, colorHex: "#E6E6E6"))
+        let colour = divider && AppearanceStore.shared.glowBorder ? NotchItem.glowColor : "#E6E6E6"
+        notchItems.append(NotchItem(kind: kind, side: .right, enabled: true, colorHex: colour))
     }
 
     func removeNotchItem(_ item: NotchItem) {
@@ -941,16 +942,43 @@ final class AppState: ObservableObject {
         let preset = NotchPreset(name: trimmed.isEmpty ? "Preset \(notchPresets.count + 1)" : trimmed,
                                  items: notchItems, spacing: notchItemSpacing)
         if let i = notchPresets.firstIndex(where: { $0.name == preset.name }) {
-            notchPresets[i] = preset
+            notchPresets[i].items = preset.items
+            notchPresets[i].spacing = preset.spacing
+            activePresetID = notchPresets[i].id
         } else {
             notchPresets.append(preset)
+            activePresetID = preset.id
         }
     }
+
+    /// The preset last applied or saved here, so it can be updated.
+    @Published var activePresetID: UUID?
 
     func applyPreset(_ preset: NotchPreset) {
         notchItems = preset.items
         notchItemSpacing = preset.spacing
         reconcileNotchItems()
+        activePresetID = preset.id
+    }
+
+    /// Overwrite a saved preset with the layout as it is now.
+    func updatePreset(_ preset: NotchPreset) {
+        guard let i = notchPresets.firstIndex(where: { $0.id == preset.id }) else { return }
+        notchPresets[i].items = notchItems
+        notchPresets[i].spacing = notchItemSpacing
+        activePresetID = preset.id
+    }
+
+    func renamePreset(_ preset: NotchPreset, to name: String) {
+        guard let i = notchPresets.firstIndex(where: { $0.id == preset.id }) else { return }
+        notchPresets[i].name = name
+    }
+
+    var activePreset: NotchPreset? { notchPresets.first { $0.id == activePresetID } }
+
+    /// Where the app icons sit in the open notch's top bar.
+    @Published var appBarAlignment: BarAlignment = BarAlignment(rawValue: UserDefaults.standard.string(forKey: "appBarAlignment") ?? "") ?? .center {
+        didSet { defaults.set(appBarAlignment.rawValue, forKey: "appBarAlignment") }
     }
 
     func deletePreset(_ preset: NotchPreset) {

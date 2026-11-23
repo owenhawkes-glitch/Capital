@@ -32,6 +32,9 @@ enum NotchSide: String, Codable, CaseIterable, Identifiable {
 }
 
 struct NotchItem: Codable, Identifiable, Equatable {
+    /// Special colour value: draw with the notch glow's moving colours.
+    static let glowColor = "glow"
+
     var id: UUID = UUID()
     var kind: NotchItemKind
     var side: NotchSide
@@ -284,11 +287,16 @@ struct NotchItemView: View {
                 .frame(width: vertical ? px(10) : px(12), height: vertical ? px(10) : px(12))
                 .contentShape(Rectangle())
         case .divider:
-            Capsule()
-                .fill(Color(hex: item.colorHex).opacity(0.5))
-                .frame(width: vertical ? px(18) : max(1, scale), height: vertical ? max(1, scale) : px(16))
-                .padding(vertical ? .vertical : .horizontal, px(4))
-                .contentShape(Rectangle())
+            Group {
+                if item.colorHex == NotchItem.glowColor {
+                    GlowFill(shape: Capsule())
+                } else {
+                    Capsule().fill(Color(hex: item.colorHex).opacity(0.5))
+                }
+            }
+            .frame(width: vertical ? px(18) : max(1.5, 1.5 * scale), height: vertical ? max(1.5, 1.5 * scale) : px(16))
+            .padding(vertical ? .vertical : .horizontal, px(4))
+            .contentShape(Rectangle())
         case .files:
             Button { state.show(tab: .files) } label: {
                 badge(symbol: "tray.full", count: shelf.files.count,

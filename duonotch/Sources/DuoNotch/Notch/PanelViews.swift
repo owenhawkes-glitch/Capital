@@ -223,11 +223,47 @@ struct TabBar: View {
                 }
             }
 
-            Color.clear
-                .frame(maxWidth: .infinity, minHeight: 20)
-                .contentShape(Rectangle())
-                .modifier(FloatingDrag(state: state))
+            if state.appBarAlignment != .leading {
+                Color.clear
+                    .frame(maxWidth: .infinity, minHeight: 20)
+                    .contentShape(Rectangle())
+                    .modifier(FloatingDrag(state: state))
+            }
+            HStack(spacing: 4) {
+            if apps.shortcuts.isEmpty {
+                    Button("+ apps") { AppState.openSettings() }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(apps.shortcuts) { app in
+                        Button {
+                            apps.open(app)
+                        } label: {
+                            VStack(spacing: 1) {
+                                Image(nsImage: apps.icon(for: app))
+                                    .resizable()
+                                    .frame(width: 18, height: 18)
+                                Circle()
+                                    .fill(apps.isRunning(app) ? Color.white.opacity(0.7) : Color.clear)
+                                    .frame(width: 3, height: 3)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .help(app.name + " — drag to reorder")
+                        .reorderSource(id: app.id.uuidString)
+                        .reorderTarget(id: app.id.uuidString) { apps.move(dragged: $0, onto: $1) }
+                    }
+                }
 
+            }
+            if state.appBarAlignment != .trailing {
+                Color.clear
+                    .frame(maxWidth: .infinity, minHeight: 20)
+                    .contentShape(Rectangle())
+                    .modifier(FloatingDrag(state: state))
+            }
             Button {
                 withAnimation(.easeInOut(duration: 0.2)) { state.arranging.toggle() }
             } label: {
@@ -241,33 +277,6 @@ struct TabBar: View {
             .buttonStyle(.plain)
             .help("Drag sections to reorder them, hide them or change their width")
             .padding(.trailing, 6)
-
-            if apps.shortcuts.isEmpty {
-                Button("+ apps") { AppState.openSettings() }
-                    .buttonStyle(.plain)
-                    .font(.system(size: 9))
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(apps.shortcuts) { app in
-                    Button {
-                        apps.open(app)
-                    } label: {
-                        VStack(spacing: 1) {
-                            Image(nsImage: apps.icon(for: app))
-                                .resizable()
-                                .frame(width: 18, height: 18)
-                            Circle()
-                                .fill(apps.isRunning(app) ? Color.white.opacity(0.7) : Color.clear)
-                                .frame(width: 3, height: 3)
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .help(app.name + " — drag to reorder")
-                    .reorderSource(id: app.id.uuidString)
-                    .reorderTarget(id: app.id.uuidString) { apps.move(dragged: $0, onto: $1) }
-                }
-            }
 
             if state.placement == .floating && state.floatingOpensOnClick {
                 Button {

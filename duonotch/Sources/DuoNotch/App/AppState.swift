@@ -834,11 +834,26 @@ final class AppState: ObservableObject {
 
     // MARK: - Notch items
 
+    /// Groups hidden with the quick toggles in the open notch.
+    @Published var hiddenGroups: Set<NotchGroup> = Set((UserDefaults.standard.stringArray(forKey: "hiddenGroups") ?? []).compactMap(NotchGroup.init)) {
+        didSet { defaults.set(hiddenGroups.map(\.rawValue), forKey: "hiddenGroups") }
+    }
+
+    func toggleGroup(_ group: NotchGroup) {
+        if hiddenGroups.contains(group) { hiddenGroups.remove(group) } else { hiddenGroups.insert(group) }
+    }
+
+    /// Groups that have at least one item switched on, so their toggle is useful.
+    var availableGroups: [NotchGroup] {
+        NotchGroup.allCases.filter { group in notchItems.contains { $0.enabled && $0.kind.group == group } }
+    }
+
     /// Items that are switched on and still point at something that exists.
     var strip: NotchStrip {
         let apps = AppShortcutStore.shared.shortcuts
         let visible = notchItems.filter { item in
             guard item.enabled else { return false }
+            if let group = item.kind.group, hiddenGroups.contains(group) { return false }
             switch item.kind {
             case .account(let id): return accounts.contains { $0.id == id && $0.enabled }
             case .app(let id): return apps.contains { $0.id == id }

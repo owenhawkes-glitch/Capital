@@ -123,6 +123,11 @@ private struct NotchContextMenu: View {
                 }
             }
         }
+        Menu("Show in notch") {
+            ForEach(state.availableGroups) { group in
+                Button((state.hiddenGroups.contains(group) ? "" : "✓ ") + group.name) { state.toggleGroup(group) }
+            }
+        }
         Menu(Caffeine.shared.isOn ? "Keep awake ☕︎ (on)" : "Keep awake") {
             Button("Until I switch it off") { Caffeine.shared.set(.on(until: nil)) }
             Button("For 1 hour") { Caffeine.shared.keepAwake(hours: 1) }

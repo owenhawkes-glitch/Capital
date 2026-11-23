@@ -240,6 +240,11 @@ also be renamed or overwritten from their row.
 The open notch's top bar centres its app icons by default; Settings →
 Panel layout moves them left or right.
 
+**Quick group toggles**: items belong to groups (Claude, Apps, Tickers,
+Clocks, Weather, Music, Links, Tools). The open notch's top bar has a
+button per group next to the app icons; click one to hide or show that
+whole group in the closed notch (also under right-click → Show in notch).
+
 Settings → **Notch** lists everything that can sit in the closed notch:
 each Claude account's usage ring, each pinned app, a clipboard counter and
 a chats counter. For each one you can switch it on, choose a colour, and

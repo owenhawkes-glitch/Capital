@@ -229,6 +229,7 @@ struct TabBar: View {
                     .contentShape(Rectangle())
                     .modifier(FloatingDrag(state: state))
             }
+            GroupToggles(state: state)
             HStack(spacing: 4) {
             if apps.shortcuts.isEmpty {
                     Button("+ apps") { AppState.openSettings() }
@@ -917,5 +918,38 @@ struct ModuleDropDelegate: DropDelegate {
             ReorderState.shared.draggingID = nil
         }
         return true
+    }
+}
+
+/// One-click show/hide for groups of items in the closed notch.
+struct GroupToggles: View {
+    @ObservedObject var state: AppState
+
+    var body: some View {
+        let groups = state.availableGroups
+        if !groups.isEmpty {
+            HStack(spacing: 2) {
+                ForEach(groups) { group in
+                    let hidden = state.hiddenGroups.contains(group)
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) { state.toggleGroup(group) }
+                    } label: {
+                        Image(systemName: group.symbol)
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(hidden ? Color.secondary.opacity(0.5) : Color.white)
+                            .frame(width: 20, height: 18)
+                            .background(RoundedRectangle(cornerRadius: 5).fill(Color.white.opacity(hidden ? 0 : 0.12)))
+                            .overlay(hidden ? RoundedRectangle(cornerRadius: 5).strokeBorder(Color.white.opacity(0.15)) : nil)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("\(hidden ? "Show" : "Hide") \(group.name.lowercased()) in the closed notch")
+                }
+            }
+            .padding(.horizontal, 4)
+            .padding(.vertical, 2)
+            .background(Capsule().fill(Color.white.opacity(0.05)))
+            .padding(.trailing, 8)
+        }
     }
 }

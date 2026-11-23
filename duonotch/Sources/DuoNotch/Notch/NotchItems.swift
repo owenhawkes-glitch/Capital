@@ -18,6 +18,21 @@ enum NotchItemKind: Codable, Hashable {
     case divider(UUID)
     case caffeine
 
+    /// Which quick-toggle group this item belongs to (nil = never hidden).
+    var group: NotchGroup? {
+        switch self {
+        case .account, .chats: return .claude
+        case .app: return .apps
+        case .ticker: return .tickers
+        case .clock: return .clocks
+        case .weather: return .weather
+        case .media: return .media
+        case .link: return .links
+        case .clipboard, .files, .caffeine: return .tools
+        case .logo, .spacer, .divider: return nil
+        }
+    }
+
     var isSeparator: Bool {
         switch self {
         case .spacer, .divider: return true
@@ -488,4 +503,34 @@ struct NotchPreset: Codable, Identifiable, Equatable {
     var name: String
     var items: [NotchItem]
     var spacing: Double
+}
+
+/// Groups of notch items that can be hidden and shown in one click.
+enum NotchGroup: String, CaseIterable, Identifiable, Codable {
+    case claude, apps, tickers, clocks, weather, media, links, tools
+    var id: String { rawValue }
+    var name: String {
+        switch self {
+        case .claude: return "Claude"
+        case .apps: return "Apps"
+        case .tickers: return "Tickers"
+        case .clocks: return "Clocks"
+        case .weather: return "Weather"
+        case .media: return "Music"
+        case .links: return "Links"
+        case .tools: return "Tools"
+        }
+    }
+    var symbol: String {
+        switch self {
+        case .claude: return "sparkles"
+        case .apps: return "square.grid.2x2.fill"
+        case .tickers: return "chart.line.uptrend.xyaxis"
+        case .clocks: return "clock.fill"
+        case .weather: return "cloud.sun.fill"
+        case .media: return "music.note"
+        case .links: return "link"
+        case .tools: return "wrench.and.screwdriver.fill"
+        }
+    }
 }

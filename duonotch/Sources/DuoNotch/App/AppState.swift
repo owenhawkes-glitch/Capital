@@ -47,6 +47,10 @@ final class AppState: ObservableObject {
     /// True while the floating panel is being dragged, so it doesn't collapse.
     @Published var dragging = false
     @Published var selectedTab: NotchTab = .claude
+    /// What the closed notch shows, in order, and on which side.
+    @Published var notchItems: [NotchItem] = [] {
+        didSet { persistNotchItems() }
+    }
     /// Height the expanded content asked for last time it was laid out.
     @Published var measuredContentHeight: CGFloat = NotchMetrics.estimatedContentHeight
 
@@ -101,6 +105,7 @@ final class AppState: ObservableObject {
         static let openForApprovals = "openForApprovals"
         static let placement = "placement"
         static let floatingOrigin = "floatingOrigin"
+        static let notchItems = "notchItems.v1"
         static let menuBarText = "showMenuBarText"
         static let projects = "projects.v1"
         static let terminalApp = "terminalApp"
@@ -136,6 +141,7 @@ final class AppState: ObservableObject {
             || ProcessInfo.processInfo.environment["DUONOTCH_DEMO"] == "1"
         accounts = Self.loadPersistedAccounts()
         projects = Self.loadPersistedProjects()
+        notchItems = Self.loadPersistedNotchItems()
         terminalApp = ProjectLauncher.TerminalApp(rawValue: stored.string(forKey: Keys.terminalApp) ?? "") ?? .terminal
     }
 
@@ -175,7 +181,9 @@ final class AppState: ObservableObject {
 
         accounts = Self.loadPersistedAccounts()
         projects = Self.loadPersistedProjects()
+        notchItems = Self.loadPersistedNotchItems()
         mergeDiscoveredAccounts()
+        reconcileNotchItems()
         startServer()
         refreshHooksInstalled()
         startPolling()
@@ -223,6 +231,7 @@ final class AppState: ObservableObject {
     }
 
     private func persistAccounts() {
+        reconcileNotchItems()
         guard !demoMode else { return }
         if let data = try? JSONEncoder().encode(accounts) {
             defaults.set(data, forKey: Keys.accounts)
@@ -561,6 +570,61 @@ final class AppState: ObservableObject {
         }
     }
 
+    // MARK: - Notch items
+
+    /// Items that are switched on and still point at something that exists.
+    var strip: NotchStrip {
+        let apps = AppShortcutStore.shared.shortcuts
+        let visible = notchItems.filter { item in
+            guard item.enabled else { return false }
+            switch item.kind {
+            case .account(let id): return accounts.contains { $0.id == id && $0.enabled }
+            case .app(let id): return apps.contains { $0.id == id }
+            case .clipboard, .chats: return true
+            }
+        }
+        return NotchStrip(left: visible.filter { $0.side == .left },
+                          right: visible.filter { $0.side == .right })
+    }
+
+    /// Adds an item for every account and pinned app that doesn't have one.
+    /// The first two accounts are shown by default, one on each side; apps,
+    /// clipboard and chats start hidden until switched on in Settings.
+    func reconcileNotchItems() {
+        var items = notchItems
+        func has(_ kind: NotchItemKind) -> Bool { items.contains { $0.kind == kind } }
+        for (index, account) in accounts.enumerated() where !has(.account(account.id)) {
+            let shownAccounts = items.filter { if case .account = $0.kind { return $0.enabled }; return false }
+            let side: NotchSide = shownAccounts.contains { $0.side == .left } ? .right : .left
+            items.append(NotchItem(kind: .account(account.id), side: side,
+                                   enabled: shownAccounts.count < 2, colorHex: AccountPalette.preset(at: index).hex))
+        }
+        for (index, app) in AppShortcutStore.shared.shortcuts.enumerated() where !has(.app(app.id)) {
+            items.append(NotchItem(kind: .app(app.id), side: .right, enabled: false,
+                                   colorHex: AccountPalette.preset(at: index + 2).hex))
+        }
+        if !has(.clipboard) {
+            items.append(NotchItem(kind: .clipboard, side: .left, enabled: false, colorHex: AccountPalette.presets[3].hex))
+        }
+        if !has(.chats) {
+            items.append(NotchItem(kind: .chats, side: .left, enabled: false, colorHex: AccountPalette.presets[2].hex))
+        }
+        if items != notchItems { notchItems = items }
+    }
+
+    private static func loadPersistedNotchItems() -> [NotchItem] {
+        guard let data = UserDefaults.standard.data(forKey: Keys.notchItems),
+              let decoded = try? JSONDecoder().decode([NotchItem].self, from: data) else { return [] }
+        return decoded
+    }
+
+    private func persistNotchItems() {
+        guard !demoMode else { return }
+        if let data = try? JSONEncoder().encode(notchItems) {
+            defaults.set(data, forKey: Keys.notchItems)
+        }
+    }
+
     // MARK: - Notch layout
 
     /// Supplied by the notch controller: the panel's current top-left corner.
@@ -620,6 +684,7 @@ final class AppState: ObservableObject {
     // MARK: - Demo support
 
     func setDemo(accounts: [Account], readings: [String: UsageReading], sessions: [ClaudeSession], pending: [PermissionRequest], projects: [Project] = []) {
+        self.notchItems = []
         self.accounts = accounts
         self.projects = projects
         self.readings = readings

@@ -70,19 +70,22 @@ enum NotchMetrics {
     static let sideWidth: CGFloat = 44
     static let floatingHeight: CGFloat = 30
 
-    static func collapsedSize(_ g: NotchGeometry, placement: NotchPlacement, accounts: Int) -> CGSize {
+    static func collapsedSize(_ g: NotchGeometry, placement: NotchPlacement, strip: NotchStrip) -> CGSize {
+        let items = strip.all
         switch placement {
         case .top:
-            return CGSize(width: (g.hasHardwareNotch ? g.notchWidth : fakeGap) + 2 * wingWidth, height: g.notchHeight)
+            return CGSize(width: (g.hasHardwareNotch ? g.notchWidth : fakeGap) + 2 * strip.wingWidth, height: g.notchHeight)
         case .left, .right:
-            return CGSize(width: sideWidth, height: accounts > 1 ? 96 : 52)
+            let h = items.reduce(0) { $0 + $1.height } + 10 * CGFloat(max(items.count - 1, 0)) + 20
+            return CGSize(width: sideWidth, height: max(h, 52))
         case .floating:
-            return CGSize(width: accounts > 1 ? 2 * wingWidth : wingWidth, height: floatingHeight)
+            let w = items.reduce(0) { $0 + $1.width } + 12 * CGFloat(max(items.count - 1, 0)) + 24
+            return CGSize(width: max(w, 80), height: floatingHeight)
         }
     }
 
-    static func expandedSize(_ g: NotchGeometry, placement: NotchPlacement, accounts: Int, contentHeight: CGFloat) -> CGSize {
-        let collapsed = collapsedSize(g, placement: placement, accounts: accounts)
+    static func expandedSize(_ g: NotchGeometry, placement: NotchPlacement, strip: NotchStrip, contentHeight: CGFloat) -> CGSize {
+        let collapsed = collapsedSize(g, placement: placement, strip: strip)
         let top: CGFloat = placement == .top ? g.notchHeight : 0
         return CGSize(width: max(expandedWidth, placement == .top ? collapsed.width : 0),
                       height: top + contentHeight)

@@ -203,6 +203,22 @@ auto-opening when a chat finishes or when Claude asks for approval.
 The expanded panel measures its own content, so it is always exactly as tall
 as what it shows.
 
+## What the closed notch shows
+
+Settings → **Notch** lists everything that can sit in the closed notch:
+each Claude account's usage ring, each pinned app, a clipboard counter and
+a chats counter. For each one you can switch it on, choose a colour, and
+(in the top position) put it left or right of the camera. Drag rows to
+reorder. The notch grows to fit and stays centred.
+
+- **App rings** are solid while the app is running, faint when it isn't.
+  Click to open or switch to it.
+- **Clipboard ring** shows how many recent copies there are; click to jump
+  to the Clipboard tab.
+- **Chats ring** counts running and waiting chats and turns amber when one
+  is waiting on you.
+- **Account colours** set here also change the account cards.
+
 ## Apps and clipboard
 
 The expanded panel has two tabs, **Claude** and **Clipboard**, and a row of

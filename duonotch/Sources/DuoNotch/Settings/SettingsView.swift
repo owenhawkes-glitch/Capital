@@ -9,6 +9,8 @@ struct SettingsView: View {
         TabView {
             AccountsSettings()
                 .tabItem { Label("Accounts", systemImage: "person.2") }
+            NotchLayoutSettings()
+                .tabItem { Label("Notch", systemImage: "rectangle.topthird.inset.filled") }
             ProjectsSettings()
                 .tabItem { Label("Projects", systemImage: "folder") }
             AppsSettings()
@@ -20,7 +22,7 @@ struct SettingsView: View {
             AboutSettings()
                 .tabItem { Label("About", systemImage: "info.circle") }
         }
-        .frame(width: 680, height: 580)
+        .frame(width: 720, height: 600)
         .onAppear {
             NSApp.activate(ignoringOtherApps: true)
             state.refreshHooksInstalled()

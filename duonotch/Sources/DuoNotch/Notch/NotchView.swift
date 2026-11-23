@@ -19,7 +19,6 @@ struct NotchView: View {
 
     private var expanded: Bool { state.isExpanded }
     private var placement: NotchPlacement { state.placement }
-    private var accountCount: Int { max(state.enabledAccounts.count, 1) }
 
     static func anchor(for placement: NotchPlacement) -> Alignment {
         switch placement {
@@ -32,8 +31,8 @@ struct NotchView: View {
 
     private var size: CGSize {
         expanded
-            ? NotchMetrics.expandedSize(geometry, placement: placement, accounts: accountCount, contentHeight: state.measuredContentHeight)
-            : NotchMetrics.collapsedSize(geometry, placement: placement, accounts: accountCount)
+            ? NotchMetrics.expandedSize(geometry, placement: placement, strip: state.strip, contentHeight: state.measuredContentHeight)
+            : NotchMetrics.collapsedSize(geometry, placement: placement, strip: state.strip)
     }
 
     private var shape: AnyShape {
@@ -57,7 +56,7 @@ struct NotchView: View {
             if placement == .top {
                 VStack(spacing: 0) {
                     CollapsedStrip(state: state, geometry: geometry)
-                        .frame(width: NotchMetrics.collapsedSize(geometry, placement: .top, accounts: accountCount).width,
+                        .frame(width: NotchMetrics.collapsedSize(geometry, placement: .top, strip: state.strip).width,
                                height: geometry.notchHeight)
                     if expanded {
                         ExpandedPanel(state: state)
@@ -126,33 +125,20 @@ private struct FloatingDrag: ViewModifier {
 
 // MARK: - Compact pill (edges and floating)
 
-/// Rings only, for the side edges (stacked) and the floating panel (in a row).
+/// The chosen items, stacked on a side edge or in a row when floating.
 private struct CompactPill: View {
     @ObservedObject var state: AppState
     let vertical: Bool
 
     var body: some View {
-        let layout = vertical ? AnyLayout(VStackLayout(spacing: 10)) : AnyLayout(HStackLayout(spacing: 14))
+        let items = state.strip.all
+        let layout = vertical ? AnyLayout(VStackLayout(spacing: 10)) : AnyLayout(HStackLayout(spacing: 12))
         layout {
-            if state.enabledAccounts.isEmpty {
+            if items.isEmpty {
                 Text("–").font(.system(size: 11)).foregroundStyle(.secondary)
             }
-            ForEach(state.enabledAccounts.prefix(2)) { account in
-                let window = state.readings[account.id]?.headline
-                let parts = vertical
-                    ? AnyLayout(VStackLayout(spacing: 3))
-                    : AnyLayout(HStackLayout(spacing: 6))
-                parts {
-                    ZStack(alignment: .topTrailing) {
-                        UsageRing(fraction: window?.fraction ?? 0, color: account.color)
-                        ActivityDot(counts: state.counts(for: account.id))
-                            .offset(x: 3, y: -2)
-                    }
-                    Text(window.map { "\($0.percent)%" } ?? "–")
-                        .font(.system(size: vertical ? 9 : 11, weight: .semibold, design: .rounded))
-                        .monospacedDigit()
-                }
-                .help(account.label)
+            ForEach(items) { item in
+                NotchItemView(state: state, item: item, vertical: vertical)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -168,40 +154,25 @@ private struct CollapsedStrip: View {
     let geometry: NotchGeometry
 
     var body: some View {
-        let accounts = state.enabledAccounts
+        let strip = state.strip
         HStack(spacing: 0) {
-            wing(for: accounts.first, alignment: .trailing)
-                .frame(width: NotchMetrics.wingWidth)
+            wing(strip.left, alignment: .trailing)
+                .frame(width: strip.wingWidth)
             Color.clear
                 .frame(width: geometry.hasHardwareNotch ? geometry.notchWidth : NotchMetrics.fakeGap)
-            wing(for: accounts.count > 1 ? accounts[1] : nil, alignment: .leading)
-                .frame(width: NotchMetrics.wingWidth)
+            wing(strip.right, alignment: .leading)
+                .frame(width: strip.wingWidth)
         }
     }
 
-    @ViewBuilder
-    private func wing(for account: Account?, alignment: Alignment) -> some View {
-        if let account {
-            let window = state.readings[account.id]?.headline
-            HStack(spacing: 6) {
-                if alignment == .trailing { ActivityDot(counts: state.counts(for: account.id)) }
-                UsageRing(fraction: window?.fraction ?? 0, color: account.color)
-                Text(window.map { "\($0.percent)%" } ?? "–")
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundStyle(window == nil ? Color.secondary : Color.primary)
-                if alignment == .leading { ActivityDot(counts: state.counts(for: account.id)) }
+    private func wing(_ items: [NotchItem], alignment: Alignment) -> some View {
+        HStack(spacing: NotchStrip.spacing) {
+            ForEach(items) { item in
+                NotchItemView(state: state, item: item)
             }
-            .frame(maxWidth: .infinity, alignment: alignment)
-            .padding(.horizontal, 10)
-            .help(account.label)
-        } else {
-            Text(state.enabledAccounts.isEmpty ? "no login" : "")
-                .font(.system(size: 10))
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: alignment)
-                .padding(.horizontal, 10)
         }
+        .frame(maxWidth: .infinity, alignment: alignment)
+        .padding(.horizontal, NotchStrip.padding / 2)
     }
 }
 

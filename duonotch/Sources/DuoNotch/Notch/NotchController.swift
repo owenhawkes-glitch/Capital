@@ -44,6 +44,15 @@ final class NotchController {
 
         rebuild()
 
+        // App shortcuts live in their own store; new ones need notch items.
+        AppShortcutStore.shared.$shortcuts
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in MainActor.assumeIsolated {
+                self?.state.reconcileNotchItems()
+                self?.syncFrame()
+            } }
+            .store(in: &cancellables)
+
         state.objectWillChange
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in MainActor.assumeIsolated { self?.stateChanged() } }
@@ -98,10 +107,10 @@ final class NotchController {
 
     private func currentFrame() -> NSRect {
         guard let geometry else { return .zero }
-        let accounts = max(state.enabledAccounts.count, 1)
+        let strip = state.strip
         let size = state.isExpanded
-            ? NotchMetrics.expandedSize(geometry, placement: state.placement, accounts: accounts, contentHeight: state.measuredContentHeight)
-            : NotchMetrics.collapsedSize(geometry, placement: state.placement, accounts: accounts)
+            ? NotchMetrics.expandedSize(geometry, placement: state.placement, strip: strip, contentHeight: state.measuredContentHeight)
+            : NotchMetrics.collapsedSize(geometry, placement: state.placement, strip: strip)
         return NotchMetrics.frame(geometry, placement: state.placement, size: size, floatingOrigin: state.floatingOrigin)
     }
 

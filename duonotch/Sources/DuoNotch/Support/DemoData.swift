@@ -72,5 +72,16 @@ enum DemoData {
         ]
 
         state.setDemo(accounts: [personal, work], readings: readings, sessions: sessions, pending: pending, projects: projects)
+
+        // Show every kind of notch item so the layout can be judged.
+        state.notchItems = state.notchItems.map { item in
+            var item = item
+            switch item.kind {
+            case .chats: item.enabled = true; item.side = .left
+            case .clipboard, .app: item.enabled = true; item.side = .right
+            case .account: break
+            }
+            return item
+        }
     }
 }

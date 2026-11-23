@@ -29,12 +29,19 @@ bundle: build
 	codesign --force --deep --sign - "$(BUNDLE)"
 	@echo "Built $(BUNDLE)"
 
-run: bundle
+# Quit a running copy and wait until it has really gone, otherwise
+# `open` can fail with error -600 while the old process is still exiting.
+define stop_app
 	pkill -x $(APP) || true
+	for i in 1 2 3 4 5 6 7 8 9 10; do pgrep -x $(APP) >/dev/null || break; sleep 0.3; done
+endef
+
+run: bundle
+	$(stop_app)
 	open "$(BUNDLE)"
 
 demo: bundle
-	pkill -x $(APP) || true
+	$(stop_app)
 	DUONOTCH_DEMO=1 open "$(BUNDLE)"
 
 release:

@@ -293,6 +293,12 @@ Arrange) and, where it makes sense, a notch item (Settings → Notch).
 
 ## Appearance
 
+Animated icons: music bars while a song plays, weather that moves with the
+conditions, chats that pulse while running and bounce when waiting, a bounce
+on each new copy, and a notch icon that can pulse, breathe, bounce, wiggle,
+rotate or colour-cycle, or **match the theme** (its own icon in the theme's
+colours). One switch turns them off; they stay still with Reduce Motion.
+
 Settings → **Appearance**: themes (optionally black while closed and
 coloured only when open), (Black, or slowly moving colourful
 Aurora / Sunset / Neon and calm Ocean / Forest / Lavender / Dusk), a glowing

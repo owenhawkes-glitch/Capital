@@ -15,6 +15,7 @@ struct AppearanceSettings: View {
                             VStack(spacing: 4) {
                                 ThemeSwatch(theme: theme)
                                     .frame(height: 34)
+                                    .overlay(Image(systemName: theme.symbol).font(.system(size: 13)).foregroundStyle(.white.opacity(0.85)))
                                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                                     .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(look.theme == theme ? Color.accentColor : Color.clear, lineWidth: 2))
                                 Text(theme.name).font(.caption)
@@ -31,6 +32,9 @@ struct AppearanceSettings: View {
                     ForEach(OpenAnimation.allCases) { Text($0.name).tag($0) }
                 }
                 .pickerStyle(.segmented)
+                Toggle("Animated icons (music bars while playing, weather, chats, clipboard, notch icon)", isOn: $look.animatedIcons)
+                Text("Icons stay still when \"Reduce motion\" is on in macOS Accessibility settings.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             Section("Notch icon") {
                 Text("Show it by switching on \"Notch icon\" in Settings → Notch, and colour it there.")
@@ -49,6 +53,28 @@ struct AppearanceSettings: View {
                         }
                         .buttonStyle(.plain)
                     }
+                }
+                Toggle("Match the theme (its own icon, colours and movement)", isOn: $look.logoFollowsTheme)
+                Picker("Icon animation", selection: $look.logoAnimation) {
+                    ForEach(IconAnimation.allCases) { Text($0.name).tag($0) }
+                }
+                .disabled(look.logoFollowsTheme)
+                HStack(spacing: 16) {
+                    Text("Preview").font(.caption).foregroundStyle(.secondary)
+                    Group {
+                        if look.logoFollowsTheme {
+                            Image(systemName: look.effectiveLogoSymbol)
+                                .font(.system(size: 22))
+                                .modifier(ThemeGradientFill())
+                        } else {
+                            Image(systemName: look.logoSymbol)
+                                .font(.system(size: 22))
+                                .symbolRenderingMode(.hierarchical)
+                                .foregroundStyle(Color.accentColor)
+                        }
+                    }
+                    .animatedSymbol(look.effectiveLogoAnimation)
+                    .id(look.effectiveLogoAnimation.rawValue + look.effectiveLogoSymbol)
                 }
                 HStack {
                     Button("Use an image…") { chooseImage() }

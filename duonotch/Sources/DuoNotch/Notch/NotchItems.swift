@@ -153,7 +153,8 @@ struct NotchItemView: View {
         case .clipboard:
             Button { state.show(tab: .clipboard) } label: {
                 badge(symbol: "doc.on.clipboard", count: clipboard.history.count,
-                      color: Color(hex: item.colorHex), active: !clipboard.history.isEmpty)
+                      color: Color(hex: item.colorHex), active: !clipboard.history.isEmpty,
+                      bounceOn: clipboard.history.first?.id.hashValue ?? 0)
             }
             .buttonStyle(.plain)
             .help("Clipboard: \(clipboard.history.count) recent, \(clipboard.snippets.count) snippets")
@@ -162,7 +163,8 @@ struct NotchItemView: View {
             let waiting = state.sessions.filter { $0.state == .waiting }.count
             Button { state.show(tab: .claude) } label: {
                 badge(symbol: "bubble.left.and.bubble.right", count: running + waiting,
-                      color: waiting > 0 ? .yellow : Color(hex: item.colorHex), active: running + waiting > 0)
+                      color: waiting > 0 ? .yellow : Color(hex: item.colorHex), active: running + waiting > 0,
+                      animation: waiting > 0 ? .bounce : (running > 0 ? .pulse : .none))
             }
             .buttonStyle(.plain)
             .help("\(running) running, \(waiting) waiting on you")
@@ -170,7 +172,9 @@ struct NotchItemView: View {
             let playing = media.track?.isPlaying == true
             HStack(spacing: px(6)) {
                 Button { media.playPause() } label: {
-                    symbolRing(playing ? "pause.fill" : "play.fill", color: Color(hex: item.colorHex), active: playing)
+                    symbolRing(playing && look.animatedIcons ? "waveform" : (playing ? "pause.fill" : "play.fill"),
+                               color: Color(hex: item.colorHex), active: playing,
+                               animation: playing ? .colour : .none)
                 }
                 .buttonStyle(.plain)
                 .help(media.track.map { "\($0.title) · \($0.artist)" } ?? "Play / pause")
@@ -202,6 +206,7 @@ struct NotchItemView: View {
                     Image(systemName: WeatherStore.symbol(weather.code, day: weather.isDay))
                         .symbolRenderingMode(.multicolor)
                         .font(.system(size: px(12)))
+                        .animatedSymbol(WeatherStore.animation(for: weather.code, day: weather.isDay))
                     Text(weather.temp(weather.temperature))
                         .font(.system(size: px(vertical ? 9 : 11), weight: .semibold, design: .rounded))
                 }
@@ -236,14 +241,24 @@ struct NotchItemView: View {
         case .logo:
             Button { AppState.openSettings() } label: {
                 Group {
-                    if let image = look.logoImage {
+                    if let image = look.logoImage, !look.logoFollowsTheme {
                         Image(nsImage: image).resizable().interpolation(.high).aspectRatio(contentMode: .fit)
                             .clipShape(RoundedRectangle(cornerRadius: px(4), style: .continuous))
+                            .modifier(ImageBreathe(active: look.logoAnimation != .none))
                     } else {
-                        Image(systemName: look.logoSymbol)
-                            .resizable().aspectRatio(contentMode: .fit)
-                            .symbolRenderingMode(.hierarchical)
-                            .foregroundStyle(Color(hex: item.colorHex))
+                        if look.logoFollowsTheme {
+                            Image(systemName: look.effectiveLogoSymbol)
+                                .resizable().aspectRatio(contentMode: .fit)
+                                .modifier(ThemeGradientFill())
+                                .animatedSymbol(look.effectiveLogoAnimation)
+                                .id(look.theme.rawValue)
+                        } else {
+                            Image(systemName: look.logoSymbol)
+                                .resizable().aspectRatio(contentMode: .fit)
+                                .symbolRenderingMode(.hierarchical)
+                                .foregroundStyle(Color(hex: item.colorHex))
+                                .animatedSymbol(look.logoAnimation)
+                        }
                     }
                 }
                 .frame(width: px(15), height: px(15))
@@ -283,12 +298,13 @@ struct NotchItemView: View {
         .contentShape(Circle())
     }
 
-    private func symbolRing(_ symbol: String, color: Color, active: Bool) -> some View {
+    private func symbolRing(_ symbol: String, color: Color, active: Bool, animation: IconAnimation = .none) -> some View {
         ZStack {
             Circle().stroke(color.opacity(active ? 1 : 0.35), lineWidth: max(2, 2 * scale))
             Image(systemName: symbol)
                 .font(.system(size: px(7), weight: .bold))
                 .foregroundStyle(color)
+                .animatedSymbol(animation)
                 // A play triangle's weight sits left of its box; nudge it so it looks centred.
                 .offset(x: symbol.hasPrefix("play") ? 0.8 * scale : 0)
         }
@@ -314,12 +330,16 @@ struct NotchItemView: View {
         .help(account.label)
     }
 
-    private func badge(symbol: String, count: Int, color: Color, active: Bool) -> some View {
+    private func badge(symbol: String, count: Int, color: Color, active: Bool,
+                       animation: IconAnimation = .none, bounceOn: Int = 0) -> some View {
         let layout = vertical ? AnyLayout(VStackLayout(spacing: px(2))) : AnyLayout(HStackLayout(spacing: px(4)))
         return layout {
             ZStack {
                 Circle().stroke(color.opacity(active ? 1 : 0.3), lineWidth: max(2, 2 * scale))
                 Image(systemName: symbol).font(.system(size: px(7), weight: .bold)).foregroundStyle(color)
+                    .animatedSymbol(animation)
+                    // One bounce whenever `bounceOn` changes (e.g. a new copy).
+                    .symbolEffect(.bounce, value: look.animatedIcons ? bounceOn : 0)
             }
             .frame(width: px(17), height: px(17))
             Text("\(count)")

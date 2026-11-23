@@ -131,6 +131,7 @@ struct WeatherCard: View {
                     Image(systemName: WeatherStore.symbol(weather.code, day: weather.isDay))
                         .symbolRenderingMode(.multicolor)
                         .font(.system(size: 28))
+                        .animatedSymbol(WeatherStore.animation(for: weather.code, day: weather.isDay))
                     VStack(alignment: .leading, spacing: 1) {
                         Text(weather.temp(weather.temperature)).font(.system(size: 22, weight: .semibold, design: .rounded))
                         Text(weather.error ?? (weather.resolvedName.isEmpty ? weather.city : weather.resolvedName))

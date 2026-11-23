@@ -34,6 +34,40 @@ enum NotchTheme: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    /// The icon that goes with this theme.
+    var symbol: String {
+        switch self {
+        case .black: return "sparkles"
+        case .aurora: return "sparkles"
+        case .sunset: return "sun.horizon.fill"
+        case .neon: return "bolt.fill"
+        case .ocean: return "water.waves"
+        case .forest: return "leaf.fill"
+        case .lavender: return "moon.stars.fill"
+        case .dusk: return "moon.haze.fill"
+        }
+    }
+
+    /// The movement that goes with this theme.
+    var iconAnimation: IconAnimation {
+        switch self {
+        case .black, .aurora: return .breathe
+        case .sunset: return .pulse
+        case .neon: return .bounce
+        case .ocean: return .colour
+        case .forest: return .wiggle
+        case .lavender, .dusk: return .breathe
+        }
+    }
+
+    /// Bright colours from the theme for filling icons.
+    var accentColors: [Color] {
+        switch self {
+        case .black: return [Color(hex: "#FF6BA8"), Color(hex: "#4C9BFF"), Color(hex: "#3FD08A"), Color(hex: "#F5C542")]
+        default: return [colors[3], colors[4], colors[5], colors[1]]
+        }
+    }
+
     /// Seconds per full drift cycle: calm themes move slowly.
     var period: Double { calm ? 26 : 11 }
 }
@@ -68,6 +102,13 @@ final class AppearanceStore: ObservableObject {
     @Published var theme: NotchTheme { didSet { save(theme.rawValue, "appearance.theme") } }
     @Published var glowBorder: Bool { didSet { save(glowBorder, "appearance.glow") } }
     @Published var blackWhenClosed: Bool { didSet { save(blackWhenClosed, "appearance.blackWhenClosed") } }
+    @Published var animatedIcons: Bool { didSet { save(animatedIcons, "appearance.animatedIcons") } }
+    @Published var logoAnimation: IconAnimation { didSet { save(logoAnimation.rawValue, "appearance.logoAnimation") } }
+    /// Use the theme's own icon, colours and movement for the notch icon.
+    @Published var logoFollowsTheme: Bool { didSet { save(logoFollowsTheme, "appearance.logoFollowsTheme") } }
+
+    var effectiveLogoSymbol: String { logoFollowsTheme ? theme.symbol : logoSymbol }
+    var effectiveLogoAnimation: IconAnimation { logoFollowsTheme ? theme.iconAnimation : logoAnimation }
     @Published var openAnimation: OpenAnimation { didSet { save(openAnimation.rawValue, "appearance.animation") } }
     /// SF Symbol for the notch icon item.
     @Published var logoSymbol: String { didSet { save(logoSymbol, "appearance.logoSymbol") } }
@@ -83,6 +124,9 @@ final class AppearanceStore: ObservableObject {
         theme = NotchTheme(rawValue: d.string(forKey: "appearance.theme") ?? "") ?? .black
         glowBorder = d.bool(forKey: "appearance.glow")
         blackWhenClosed = d.bool(forKey: "appearance.blackWhenClosed")
+        animatedIcons = d.object(forKey: "appearance.animatedIcons") as? Bool ?? true
+        logoAnimation = IconAnimation(rawValue: d.string(forKey: "appearance.logoAnimation") ?? "") ?? .breathe
+        logoFollowsTheme = d.bool(forKey: "appearance.logoFollowsTheme")
         openAnimation = OpenAnimation(rawValue: d.string(forKey: "appearance.animation") ?? "") ?? .spring
         logoSymbol = d.string(forKey: "appearance.logoSymbol") ?? "sparkles"
         logoImagePath = d.string(forKey: "appearance.logoImage")
@@ -152,6 +196,19 @@ struct GlowBorder<S: Shape>: View {
                     .opacity(look.theme.calm ? 0.6 : 0.9)
             }
             .allowsHitTesting(false)
+        }
+    }
+}
+
+/// Fills a view with the theme's colours, slowly turning.
+struct ThemeGradientFill: ViewModifier {
+    @ObservedObject private var look = AppearanceStore.shared
+
+    func body(content: Content) -> some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 20.0, paused: !look.animatedIcons)) { context in
+            let angle = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 10) / 10 * 360
+            let colors = look.theme.accentColors
+            content.foregroundStyle(AngularGradient(colors: colors + [colors[0]], center: .center, angle: .degrees(angle)))
         }
     }
 }

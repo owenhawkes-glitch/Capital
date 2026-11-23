@@ -31,7 +31,7 @@ struct NotchView: View {
 
     private var size: CGSize {
         expanded
-            ? NotchMetrics.expandedSize(geometry, placement: placement, strip: state.strip, width: state.panelContentWidth(maxWidth: geometry.screen.visibleFrame.width - 40), contentHeight: state.measuredContentHeight)
+            ? NotchMetrics.expandedSize(geometry, placement: placement, strip: state.strip, scale: state.notchScale, width: state.panelContentWidth(maxWidth: geometry.screen.visibleFrame.width - 40), contentHeight: state.measuredContentHeight)
             : NotchMetrics.collapsedSize(geometry, placement: placement, strip: state.strip, scale: state.notchScale)
     }
 
@@ -59,12 +59,26 @@ struct NotchView: View {
                         .frame(width: NotchMetrics.collapsedSize(geometry, placement: .top, strip: state.strip, scale: state.notchScale).width,
                                height: geometry.notchHeight)
                     if expanded {
-                        ExpandedPanel(state: state, width: state.panelContentWidth(maxWidth: geometry.screen.visibleFrame.width - 40))
+                        ExpandedPanel(state: state, width: state.panelContentWidth(maxWidth: geometry.screen.visibleFrame.width - 40), maxHeight: geometry.screen.visibleFrame.height - 20)
                             .transition(.opacity.combined(with: .move(edge: .top)))
                     }
                 }
+            } else if expanded && (placement == .left || placement == .right) {
+                let pill = NotchMetrics.collapsedSize(geometry, placement: placement, strip: state.strip, scale: state.notchScale)
+                HStack(spacing: 0) {
+                    if placement == .left {
+                        CompactPill(state: state, vertical: true)
+                            .frame(width: pill.width, height: min(pill.height, size.height))
+                    }
+                    ExpandedPanel(state: state, width: state.panelContentWidth(maxWidth: geometry.screen.visibleFrame.width - 40), maxHeight: geometry.screen.visibleFrame.height - 20)
+                        .transition(.opacity)
+                    if placement == .right {
+                        CompactPill(state: state, vertical: true)
+                            .frame(width: pill.width, height: min(pill.height, size.height))
+                    }
+                }
             } else if expanded {
-                ExpandedPanel(state: state, width: state.panelContentWidth(maxWidth: geometry.screen.visibleFrame.width - 40))
+                ExpandedPanel(state: state, width: state.panelContentWidth(maxWidth: geometry.screen.visibleFrame.width - 40), maxHeight: geometry.screen.visibleFrame.height - 20)
                     .transition(.opacity)
             } else {
                 CompactPill(state: state, vertical: placement != .floating)

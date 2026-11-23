@@ -9,9 +9,20 @@ private struct ContentHeightKey: PreferenceKey {
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
+private struct ColumnHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
 struct ExpandedPanel: View {
     @ObservedObject var state: AppState
     let width: CGFloat
+    var maxHeight: CGFloat = 1200
+    @State private var columnHeight: CGFloat = 300
+
+    private var alongSide: Bool {
+        state.panelLayout == .row && (state.placement == .left || state.placement == .right)
+    }
 
     var body: some View {
         VStack(spacing: 8) {
@@ -26,6 +37,25 @@ struct ExpandedPanel: View {
                     }
                 }
                 .padding(.horizontal, 14)
+            } else if alongSide {
+                // Runs along the edge: sections stacked top to bottom,
+                // scrolling if taller than the screen.
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: PanelMetrics.spacing) {
+                        ForEach(shown) { config in
+                            ModuleView(state: state, module: config.module, half: true)
+                                .frame(width: PanelMetrics.wideColumn, alignment: .top)
+                        }
+                    }
+                    .background(GeometryReader { proxy in
+                        Color.clear.preference(key: ColumnHeightKey.self, value: proxy.size.height)
+                    })
+                }
+                .frame(height: min(columnHeight, maxHeight - 70))
+                .onPreferenceChange(ColumnHeightKey.self) { h in
+                    MainActor.assumeIsolated { if abs(h - columnHeight) > 0.5 { columnHeight = h } }
+                }
+                .padding(.horizontal, PanelMetrics.sidePadding)
             } else if state.panelLayout == .row {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(alignment: .top, spacing: PanelMetrics.spacing) {

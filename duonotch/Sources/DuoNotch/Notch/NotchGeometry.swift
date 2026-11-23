@@ -90,11 +90,21 @@ enum NotchMetrics {
         }
     }
 
-    static func expandedSize(_ g: NotchGeometry, placement: NotchPlacement, strip: NotchStrip, width: CGFloat, contentHeight: CGFloat) -> CGSize {
-        let collapsed = unscaledCollapsedSize(g, placement: placement, strip: strip)
-        let top: CGFloat = placement == .top ? g.notchHeight : 0
-        return CGSize(width: max(width, placement == .top ? collapsed.width : 0),
-                      height: top + contentHeight)
+    static func expandedSize(_ g: NotchGeometry, placement: NotchPlacement, strip: NotchStrip, scale: CGFloat, width: CGFloat, contentHeight: CGFloat) -> CGSize {
+        switch placement {
+        case .top:
+            // Strip across the top, panel hanging below it.
+            let collapsed = unscaledCollapsedSize(g, placement: .top, strip: strip)
+            return CGSize(width: max(width, collapsed.width), height: g.notchHeight + contentHeight)
+        case .left, .right:
+            // Strip stays against the edge, panel opens outward beside it.
+            let collapsed = collapsedSize(g, placement: placement, strip: strip, scale: scale)
+            let maxHeight = g.screen.visibleFrame.height
+            return CGSize(width: collapsed.width + width,
+                          height: min(max(collapsed.height, contentHeight), maxHeight))
+        case .floating:
+            return CGSize(width: width, height: contentHeight)
+        }
     }
 
     /// Screen rectangle for the panel. `floatingOrigin` is the top-left

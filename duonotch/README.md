@@ -190,8 +190,12 @@ Right-click the notch → **Position**, or Settings → Behaviour:
 
 - **Top centre (notch)**: sits in the camera housing, or draws a fake notch
   exactly as tall as the menu bar on screens without one
-- **Left edge / Right edge**: a small tab at mid-height with the two rings
-  stacked; the panel slides out from that edge on hover
+- **Left edge / Right edge**: a strip at mid-height with your items stacked.
+  On hover the strip stays against the edge and the panel opens beside it,
+  outward into the screen (rightward from the left edge, leftward from the
+  right), growing up and down from the strip's middle. In the Side by side
+  layout the sections run along the edge, top to bottom, scrolling if they
+  are taller than the screen
 - **Floating window**: a small pill you can put anywhere. Drag the empty part
   of the panel's top bar (or the pill itself) to move it. Settings has
   **Reset position**

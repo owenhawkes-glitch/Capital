@@ -100,6 +100,10 @@ final class AppState: ObservableObject {
     /// the screen width; the other layouts use the chosen width.
     func panelContentWidth(maxWidth: CGFloat) -> CGFloat {
         guard panelLayout == .row else { return panelWidth }
+        // On a side edge the row runs along the edge: one column, stacked.
+        if placement == .left || placement == .right {
+            return PanelMetrics.wideColumn + 2 * PanelMetrics.sidePadding
+        }
         let columns = shownPanelModules
         let sum = columns.reduce(0) { $0 + ($1.fullWidth ? PanelMetrics.wideColumn : PanelMetrics.narrowColumn) }
         let total = sum + PanelMetrics.spacing * CGFloat(max(columns.count - 1, 0)) + 2 * PanelMetrics.sidePadding

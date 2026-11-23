@@ -13,6 +13,10 @@ struct SettingsView: View {
                 .tabItem { Label("Notch", systemImage: "rectangle.topthird.inset.filled") }
             PanelSettings()
                 .tabItem { Label("Panel", systemImage: "square.grid.3x2") }
+            WidgetsSettings()
+                .tabItem { Label("Widgets", systemImage: "clock") }
+            AppearanceSettings()
+                .tabItem { Label("Appearance", systemImage: "paintpalette") }
             ProjectsSettings()
                 .tabItem { Label("Projects", systemImage: "folder") }
             AppsSettings()
@@ -24,7 +28,7 @@ struct SettingsView: View {
             AboutSettings()
                 .tabItem { Label("About", systemImage: "info.circle") }
         }
-        .frame(width: 760, height: 620)
+        .frame(width: 860, height: 680)
         .onAppear {
             NSApp.activate(ignoringOtherApps: true)
             state.refreshHooksInstalled()

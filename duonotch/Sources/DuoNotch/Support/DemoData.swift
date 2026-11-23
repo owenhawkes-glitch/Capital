@@ -80,6 +80,8 @@ enum DemoData {
             case .chats: item.enabled = true; item.side = .left
             case .clipboard, .app, .media: item.enabled = true; item.side = .right
             case .files: item.enabled = true; item.side = .left
+            case .link, .ticker: item.enabled = true; item.side = .right
+            case .clock, .weather, .logo: item.enabled = true; item.side = .left
             case .account: break
             }
             return item

@@ -15,6 +15,7 @@ struct NotchRootView: View {
 
 struct NotchView: View {
     @ObservedObject var state: AppState
+    @ObservedObject private var look = AppearanceStore.shared
     let geometry: NotchGeometry
 
     private var expanded: Bool { state.isExpanded }
@@ -51,7 +52,8 @@ struct NotchView: View {
 
     var body: some View {
         ZStack(alignment: Self.anchor(for: placement)) {
-            shape.fill(Color.black)
+            NotchBackground(expanded: expanded)
+                .clipShape(shape)
 
             if placement == .top {
                 VStack(spacing: 0) {
@@ -88,12 +90,13 @@ struct NotchView: View {
         .frame(width: size.width, height: size.height, alignment: Self.anchor(for: placement))
         .clipShape(shape)
         .overlay(
-            placement == .floating
+            placement == .floating && !look.glowBorder
                 ? AnyView(shape.stroke(Color.white.opacity(0.12), lineWidth: 1))
                 : AnyView(EmptyView())
         )
-        .animation(.spring(response: 0.32, dampingFraction: 0.86), value: expanded)
-        .animation(.spring(response: 0.32, dampingFraction: 0.86), value: state.measuredContentHeight)
+        .overlay(GlowBorder(shape: shape))
+        .animation(look.openAnimation.animation, value: expanded)
+        .animation(look.openAnimation.animation, value: state.measuredContentHeight)
         .foregroundStyle(.white)
         .contextMenu { NotchContextMenu(state: state) }
         .onDrop(of: [.fileURL], isTargeted: $state.fileDragOver) { providers in
@@ -158,17 +161,17 @@ private struct CompactPill: View {
 
     var body: some View {
         let items = state.strip.all
-        let layout = vertical ? AnyLayout(VStackLayout(spacing: 10)) : AnyLayout(HStackLayout(spacing: 12))
+        let scale = state.notchScale
+        let layout = vertical ? AnyLayout(VStackLayout(spacing: 10 * scale)) : AnyLayout(HStackLayout(spacing: 12 * scale))
         layout {
             if items.isEmpty {
                 Text("–").font(.system(size: 11)).foregroundStyle(.secondary)
             }
             ForEach(items) { item in
-                NotchItemView(state: state, item: item, vertical: vertical)
+                NotchItemView(state: state, item: item, vertical: vertical, scale: scale)
                     .reorderTarget(id: item.id.uuidString) { state.moveNotchItem(dragged: $0, onto: $1) }
             }
         }
-        .scaleEffect(state.notchScale)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .contentShape(Rectangle())
         .onTapGesture {

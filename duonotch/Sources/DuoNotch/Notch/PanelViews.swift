@@ -33,7 +33,7 @@ struct ExpandedPanel: View {
                 let tab = state.visibleTabs.contains(state.selectedTab) ? state.selectedTab : (state.visibleTabs.first ?? .claude)
                 VStack(spacing: 10) {
                     ForEach(modules(in: tab)) { config in
-                        ModuleView(state: state, module: config.module, half: false)
+                        ArrangeTile(state: state, config: config, half: false)
                     }
                 }
                 .padding(.horizontal, 14)
@@ -43,7 +43,7 @@ struct ExpandedPanel: View {
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: PanelMetrics.spacing) {
                         ForEach(shown) { config in
-                            ModuleView(state: state, module: config.module, half: true)
+                            ArrangeTile(state: state, config: config, half: true)
                                 .frame(width: PanelMetrics.wideColumn, alignment: .top)
                         }
                     }
@@ -60,7 +60,7 @@ struct ExpandedPanel: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(alignment: .top, spacing: PanelMetrics.spacing) {
                         ForEach(shown) { config in
-                            ModuleView(state: state, module: config.module, half: true)
+                            ArrangeTile(state: state, config: config, half: true)
                                 .frame(width: config.fullWidth ? PanelMetrics.wideColumn : PanelMetrics.narrowColumn, alignment: .top)
                         }
                     }
@@ -71,13 +71,18 @@ struct ExpandedPanel: View {
                     ForEach(bentoRows(), id: \.first!.id) { row in
                         HStack(alignment: .top, spacing: 10) {
                             ForEach(row) { config in
-                                ModuleView(state: state, module: config.module, half: row.count > 1)
+                                ArrangeTile(state: state, config: config, half: row.count > 1)
                                     .frame(maxWidth: .infinity, alignment: .top)
                             }
                         }
                     }
                 }
                 .padding(.horizontal, 14)
+            }
+
+            if state.arranging {
+                HiddenSectionsTray(state: state)
+                    .padding(.horizontal, PanelMetrics.sidePadding)
             }
 
             HStack {
@@ -152,6 +157,16 @@ struct ModuleView: View {
             ProjectsRow(state: state)
         case .media:
             MediaCard()
+        case .window:
+            WindowMirrorCard()
+        case .links:
+            LinksCard()
+        case .clocks:
+            ClocksCard()
+        case .weather:
+            WeatherCard()
+        case .markets:
+            MarketsCard()
         case .files:
             FileShelfView(compact: half)
         case .clipboard:
@@ -197,6 +212,20 @@ struct TabBar: View {
                 .contentShape(Rectangle())
                 .modifier(FloatingDrag(state: state))
 
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) { state.arranging.toggle() }
+            } label: {
+                Text(state.arranging ? "Done" : "Arrange")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(state.arranging ? Color.black : Color.secondary)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(state.arranging ? Color.white : Color.white.opacity(0.08)))
+            }
+            .buttonStyle(.plain)
+            .help("Drag sections to reorder them, hide them or change their width")
+            .padding(.trailing, 6)
+
             if apps.shortcuts.isEmpty {
                 Button("+ apps") { AppState.openSettings() }
                     .buttonStyle(.plain)
@@ -241,7 +270,7 @@ struct TabBar: View {
     }
 }
 
-private func card<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+func card<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
     content()
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -548,5 +577,202 @@ struct ProgressRow: View {
         return s >= 3600
             ? String(format: "%d:%02d:%02d", s / 3600, (s % 3600) / 60, s % 60)
             : String(format: "%d:%02d", s / 60, s % 60)
+    }
+}
+
+// MARK: - Arrange mode
+
+/// A section, plus — while arranging — a frame you drag to reorder, with
+/// buttons to hide it or switch its width. Its own controls are paused.
+struct ArrangeTile: View {
+    @ObservedObject var state: AppState
+    let config: PanelModuleConfig
+    let half: Bool
+
+    var body: some View {
+        if state.arranging {
+            ModuleView(state: state, module: config.module, half: half)
+                .allowsHitTesting(false)
+                .opacity(0.55)
+                .overlay(alignment: .topTrailing) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "line.3.horizontal")
+                        Text(config.module.title).lineLimit(1)
+                        Spacer(minLength: 4)
+                        Button(config.fullWidth ? "Narrow" : "Wide") { state.toggleWidth(config.module) }
+                        Button { state.setModule(config.module, enabled: false) } label: { Image(systemName: "eye.slash") }
+                            .help("Hide this section")
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 9, weight: .semibold))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(Color.black.opacity(0.75)))
+                    .padding(6)
+                }
+                .overlay(
+                    RoundedRectangle(cornerRadius: 11)
+                        .strokeBorder(Color.white.opacity(0.55), style: StrokeStyle(lineWidth: 1.2, dash: [5, 4]))
+                )
+                .contentShape(Rectangle())
+                .reorderSource(id: config.module.rawValue)
+                .reorderTarget(id: config.module.rawValue) { state.moveModule(dragged: $0, onto: $1) }
+        } else {
+            ModuleView(state: state, module: config.module, half: half)
+        }
+    }
+}
+
+/// Hidden sections, shown while arranging so they can be brought back.
+struct HiddenSectionsTray: View {
+    @ObservedObject var state: AppState
+
+    var body: some View {
+        let hidden = state.panelModules.filter { !$0.enabled }
+        HStack(spacing: 6) {
+            Text(hidden.isEmpty ? "Drag sections to reorder. Everything is showing." : "Hidden:")
+                .font(.system(size: 9))
+                .foregroundStyle(.secondary)
+            ForEach(hidden) { config in
+                Button {
+                    state.setModule(config.module, enabled: true)
+                } label: {
+                    Label(config.module.title, systemImage: "plus")
+                        .font(.system(size: 9, weight: .medium))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(Color.white.opacity(0.1)))
+                }
+                .buttonStyle(.plain)
+            }
+            Spacer()
+        }
+    }
+}
+
+// MARK: - Live window
+
+struct WindowMirrorCard: View {
+    @ObservedObject private var mirror = WindowMirror.shared
+
+    var body: some View {
+        card {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("Live: \(mirror.targetName)")
+                        .font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
+                    Spacer()
+                    Menu {
+                        ForEach(mirror.candidates) { c in
+                            Button(c.appName) { mirror.targetBundleID = c.bundleID }
+                        }
+                    } label: {
+                        Text("Change").font(.system(size: 9))
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                }
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.05))
+                    if let frame = mirror.frame {
+                        Image(decorative: frame, scale: 2)
+                            .resizable()
+                            .interpolation(.high)
+                            .aspectRatio(contentMode: .fit)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .onTapGesture { mirror.bringTargetToFront() }
+                            .help("Click to switch to \(mirror.targetName)")
+                    } else if mirror.needsPermission {
+                        VStack(spacing: 6) {
+                            Text("Allow Screen Recording so DuoNotch can show another app's window.")
+                                .font(.system(size: 10)).multilineTextAlignment(.center)
+                            Button("Open Privacy settings") { mirror.openPrivacySettings() }
+                                .font(.system(size: 10))
+                        }
+                        .padding(10)
+                    } else {
+                        Text(mirror.status).font(.system(size: 10)).foregroundStyle(.secondary)
+                    }
+                }
+                .aspectRatio(16 / 9, contentMode: .fit)
+            }
+        }
+        .onAppear { mirror.appear() }
+        .onDisappear { mirror.disappear() }
+    }
+}
+
+// MARK: - Links
+
+struct LinksCard: View {
+    @ObservedObject private var store = LinkStore.shared
+
+    var body: some View {
+        card {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("Links").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Edit") { AppState.openSettings() }
+                        .buttonStyle(.plain).font(.system(size: 9)).foregroundStyle(.secondary)
+                }
+                if store.links.isEmpty {
+                    Button("Add Google links") { store.addGooglePresets() }
+                        .buttonStyle(.plain).font(.system(size: 10)).foregroundStyle(.blue)
+                } else {
+                    FlowLayout(spacing: 6) {
+                        ForEach(store.links) { link in
+                            Button { store.open(link) } label: {
+                                HStack(spacing: 5) {
+                                    if let icon = store.icon(for: link) {
+                                        Image(nsImage: icon).resizable().interpolation(.high).frame(width: 14, height: 14)
+                                    } else {
+                                        Image(systemName: "link").font(.system(size: 9))
+                                    }
+                                    Text(link.title).font(.system(size: 10, weight: .medium)).lineLimit(1)
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Capsule().fill(Color.white.opacity(0.1)))
+                                .contentShape(Capsule())
+                            }
+                            .buttonStyle(.plain)
+                            .help(link.url)
+                            .reorderSource(id: link.id.uuidString)
+                            .reorderTarget(id: link.id.uuidString) { store.move(dragged: $0, onto: $1) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Wraps chips onto as many lines as needed.
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 6
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? 400
+        var x: CGFloat = 0, y: CGFloat = 0, rowHeight: CGFloat = 0, widest: CGFloat = 0
+        for view in subviews {
+            let size = view.sizeThatFits(.unspecified)
+            if x > 0 && x + size.width > maxWidth { x = 0; y += rowHeight + spacing; rowHeight = 0 }
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+            widest = max(widest, x - spacing)
+        }
+        return CGSize(width: min(widest, maxWidth), height: y + rowHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX, y = bounds.minY, rowHeight: CGFloat = 0
+        for view in subviews {
+            let size = view.sizeThatFits(.unspecified)
+            if x > bounds.minX && x + size.width > bounds.maxX { x = bounds.minX; y += rowHeight + spacing; rowHeight = 0 }
+            view.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
     }
 }

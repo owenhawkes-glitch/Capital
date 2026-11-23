@@ -82,6 +82,13 @@ final class AppState: ObservableObject {
     @Published var notchScale: Double {
         didSet { defaults.set(notchScale, forKey: Keys.notchScale) }
     }
+    /// Smaller columns, padding and a compact width option.
+    @Published var panelCompact: Bool {
+        didSet {
+            defaults.set(panelCompact, forKey: "panelCompact")
+            PanelMetrics.compact = panelCompact
+        }
+    }
     @Published var floatingOpensOnClick: Bool {
         didSet { defaults.set(floatingOpensOnClick, forKey: Keys.floatingClick) }
     }
@@ -108,6 +115,28 @@ final class AppState: ObservableObject {
         let sum = columns.reduce(0) { $0 + ($1.fullWidth ? PanelMetrics.wideColumn : PanelMetrics.narrowColumn) }
         let total = sum + PanelMetrics.spacing * CGFloat(max(columns.count - 1, 0)) + 2 * PanelMetrics.sidePadding
         return min(max(total, 420), maxWidth)
+    }
+
+    /// Arrange mode in the open panel.
+    @Published var arranging = false
+
+    func moveModule(dragged: String, onto target: String) {
+        guard let from = panelModules.firstIndex(where: { $0.module.rawValue == dragged }),
+              let to = panelModules.firstIndex(where: { $0.module.rawValue == target }) else { return }
+        var modules = panelModules
+        let item = modules.remove(at: from)
+        modules.insert(item, at: to)
+        panelModules = modules
+    }
+
+    func setModule(_ module: PanelModule, enabled: Bool) {
+        guard let i = panelModules.firstIndex(where: { $0.module == module }) else { return }
+        panelModules[i].enabled = enabled
+    }
+
+    func toggleWidth(_ module: PanelModule) {
+        guard let i = panelModules.firstIndex(where: { $0.module == module }) else { return }
+        panelModules[i].fullWidth.toggle()
     }
 
     func isEnabled(_ module: PanelModule) -> Bool {
@@ -208,6 +237,7 @@ final class AppState: ObservableObject {
         // Debug aids for screenshots: start open, and on a given tab.
         pinnedOpen = ProcessInfo.processInfo.environment["DUONOTCH_OPEN"] == "1"
         selectedTab = NotchTab(rawValue: ProcessInfo.processInfo.environment["DUONOTCH_TAB"] ?? "") ?? .claude
+        arranging = ProcessInfo.processInfo.environment["DUONOTCH_ARRANGE"] == "1"
         showMenuBarText = stored.bool(forKey: Keys.menuBarText)
         demoMode = stored.bool(forKey: Keys.demoMode)
             || ProcessInfo.processInfo.environment["DUONOTCH_DEMO"] == "1"
@@ -219,8 +249,10 @@ final class AppState: ObservableObject {
         panelModules = modules
         panelLayout = PanelLayoutStyle(rawValue: stored.string(forKey: Keys.panelLayout) ?? "") ?? .tabs
         let width = stored.double(forKey: Keys.panelWidth)
-        panelWidth = width >= 500 ? width : 600
+        panelWidth = width >= 450 ? width : 600
         floatingOpensOnClick = stored.object(forKey: Keys.floatingClick) as? Bool ?? true
+        panelCompact = stored.bool(forKey: "panelCompact")
+        PanelMetrics.compact = stored.bool(forKey: "panelCompact")
         let scale = stored.double(forKey: Keys.notchScale)
         notchScale = scale >= 0.8 ? scale : 1
         terminalApp = ProjectLauncher.TerminalApp(rawValue: stored.string(forKey: Keys.terminalApp) ?? "") ?? .terminal
@@ -661,6 +693,10 @@ final class AppState: ObservableObject {
             switch item.kind {
             case .account(let id): return accounts.contains { $0.id == id && $0.enabled }
             case .app(let id): return apps.contains { $0.id == id }
+            case .link(let id): return LinkStore.shared.links.contains { $0.id == id }
+            case .clock(let id): return ClockStore.shared.clocks.contains { $0.id == id }
+            case .ticker(let id): return MarketStore.shared.tickers.contains { $0.id == id }
+            case .weather, .logo: return true
             case .clipboard, .chats, .media, .files: return true
             }
         }
@@ -683,6 +719,23 @@ final class AppState: ObservableObject {
         for (index, app) in AppShortcutStore.shared.shortcuts.enumerated() where !has(.app(app.id)) {
             items.append(NotchItem(kind: .app(app.id), side: .right, enabled: false,
                                    colorHex: AccountPalette.preset(at: index + 2).hex))
+        }
+        for (index, link) in LinkStore.shared.links.enumerated() where !has(.link(link.id)) {
+            items.append(NotchItem(kind: .link(link.id), side: .right, enabled: false,
+                                   colorHex: AccountPalette.preset(at: index + 4).hex))
+        }
+        for clock in ClockStore.shared.clocks where !has(.clock(clock.id)) {
+            items.append(NotchItem(kind: .clock(clock.id), side: .left, enabled: false, colorHex: AccountPalette.presets[7].hex))
+        }
+        for (index, ticker) in MarketStore.shared.tickers.enumerated() where !has(.ticker(ticker.id)) {
+            items.append(NotchItem(kind: .ticker(ticker.id), side: .right, enabled: false,
+                                   colorHex: AccountPalette.preset(at: index + 1).hex))
+        }
+        if !has(.weather) {
+            items.append(NotchItem(kind: .weather, side: .left, enabled: false, colorHex: AccountPalette.presets[6].hex))
+        }
+        if !has(.logo) {
+            items.insert(NotchItem(kind: .logo, side: .left, enabled: false, colorHex: AccountPalette.presets[3].hex), at: 0)
         }
         if !has(.clipboard) {
             items.append(NotchItem(kind: .clipboard, side: .left, enabled: false, colorHex: AccountPalette.presets[3].hex))

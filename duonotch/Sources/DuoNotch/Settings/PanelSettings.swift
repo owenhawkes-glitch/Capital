@@ -20,13 +20,15 @@ struct PanelSettings: View {
             }())
                 .font(.caption).foregroundStyle(.secondary)
 
+            Toggle("Compact: narrower columns so the open notch takes less space", isOn: $state.panelCompact)
             Picker("Width", selection: $state.panelWidth) {
+                Text("Compact").tag(480.0)
                 Text("Standard").tag(600.0)
                 Text("Wide").tag(820.0)
                 Text("Extra wide").tag(1040.0)
             }
             .pickerStyle(.segmented)
-            .frame(width: 360)
+            .frame(width: 440)
             .disabled(state.panelLayout == .row)
 
             Text("Sections").font(.headline).padding(.top, 4)
@@ -57,7 +59,7 @@ struct PanelSettings: View {
             }
             .frame(minHeight: 230)
 
-            Text("Approvals only appear while Claude is waiting on one. Turning a section off hides its tab too.")
+            Text("Tip: click Arrange in the open notch to drag sections around, hide them or change their width right there. Approvals only appear while Claude is waiting on one.")
                 .font(.caption).foregroundStyle(.secondary)
         }
         .padding()

@@ -54,6 +54,7 @@ struct NotchGeometry {
     }
 }
 
+@MainActor
 enum NotchMetrics {
     /// Space either side of the camera housing for one account's ring.
     static let wingWidth: CGFloat = 84

@@ -53,6 +53,22 @@ final class NotchController {
             } }
             .store(in: &cancellables)
 
+        Publishers.Merge(ClockStore.shared.$clocks.map { _ in () }, MarketStore.shared.$tickers.map { _ in () })
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in MainActor.assumeIsolated {
+                self?.state.reconcileNotchItems()
+                self?.syncFrame()
+            } }
+            .store(in: &cancellables)
+
+        LinkStore.shared.$links
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in MainActor.assumeIsolated {
+                self?.state.reconcileNotchItems()
+                self?.syncFrame()
+            } }
+            .store(in: &cancellables)
+
         state.objectWillChange
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in MainActor.assumeIsolated { self?.stateChanged() } }

@@ -87,6 +87,11 @@ struct NotchLayoutSettings: View {
         case .chats: return "Chats running / waiting"
         case .media: return "Play / pause (Spotify, Music)"
         case .files: return "File shelf"
+        case .link(let id): return LinkStore.shared.links.first { $0.id == id }.map { "Link: \($0.title)" }
+        case .clock(let id): return ClockStore.shared.clocks.first { $0.id == id }.map { "Clock: \($0.label.isEmpty ? ($0.isLocal ? "Local" : $0.timeZoneID) : $0.label) (\($0.style.name))" }
+        case .ticker(let id): return MarketStore.shared.tickers.first { $0.id == id }.map { "Ticker: \($0.name)" }
+        case .weather: return "Weather"
+        case .logo: return "Notch icon (choose it in Appearance)"
         }
     }
 
@@ -111,6 +116,23 @@ struct NotchLayoutSettings: View {
             symbolRing("play.fill", item.colorHex)
         case .files:
             symbolRing("tray.full", item.colorHex)
+        case .clock:
+            symbolRing("clock", item.colorHex)
+        case .ticker:
+            symbolRing("chart.line.uptrend.xyaxis", item.colorHex)
+        case .weather:
+            Image(systemName: "cloud.sun.fill").symbolRenderingMode(.multicolor)
+        case .logo:
+            Image(systemName: AppearanceStore.shared.logoSymbol).foregroundStyle(Color(hex: item.colorHex))
+        case .link(let id):
+            if let link = LinkStore.shared.links.first(where: { $0.id == id }), let icon = LinkStore.shared.icon(for: link) {
+                ZStack {
+                    Circle().stroke(Color(hex: item.colorHex), lineWidth: 2)
+                    Image(nsImage: icon).resizable().frame(width: 12, height: 12)
+                }
+            } else {
+                symbolRing("link", item.colorHex)
+            }
         }
     }
 

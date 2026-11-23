@@ -281,6 +281,8 @@ struct NotchItemView: View {
             Image(systemName: symbol)
                 .font(.system(size: px(7), weight: .bold))
                 .foregroundStyle(color)
+                // A play triangle's weight sits left of its box; nudge it so it looks centred.
+                .offset(x: symbol.hasPrefix("play") ? 0.8 * scale : 0)
         }
         .frame(width: px(18), height: px(18))
         .contentShape(Circle())

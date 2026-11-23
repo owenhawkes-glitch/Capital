@@ -241,11 +241,18 @@ Settings → **Panel** chooses how the expanded notch looks:
 - **Sections**: switch each on or off, set narrow/wide (half/full in the
   grid), and reorder with the arrows
 
+## Places: file and folder paths
+
+Settings → **Places** (or drop files onto the Places section) keeps files
+and folders one click away: copy the path, show it in Finder, open a
+terminal there, or double-click to open it.
+
 ## Arrange the open notch
 
 Click **Arrange** in the open notch's top bar. Each section gets a dashed
-frame: drag it to reorder, click **Narrow/Wide** to change its size, or the
-eye to hide it. Hidden sections show as chips at the bottom so you can bring
+frame: drag it to reorder, use **−/+** to size it (S, M, L, XL), or the
+eye to hide it. In the long row, small and medium cards stack two to a
+column. Hidden sections show as chips at the bottom so you can bring
 them back. Click **Done** when finished. Settings → Panel → **Compact**
 shrinks the columns, and there's a Compact width too.
 
@@ -263,12 +270,14 @@ Arrange) and, where it makes sense, a notch item (Settings → Notch).
   minute, with a sparkline and % change. Click to open the TradingView chart
 - **Quick links**: any URL, with a one-click set of Google links
 - **Live window**: a live mirror of another app's window, e.g. a Spotify
-  video podcast. Needs Screen Recording permission; the window must be open
+  video podcast or a Parsec session (one-click buttons for both, "Other…"
+  for any app). Needs Screen Recording permission; the window must be open
   (behind others is fine, minimised isn't). Click it to switch to the app
 
 ## Appearance
 
-Settings → **Appearance**: themes (Black, or slowly moving colourful
+Settings → **Appearance**: themes (optionally black while closed and
+coloured only when open), (Black, or slowly moving colourful
 Aurora / Sunset / Neon and calm Ocean / Forest / Lavender / Dusk), a glowing
 edge, the open/close animation (Spring, Smooth, Bouncy, Snappy, Gentle) and
 the notch icon (a symbol or your own image).

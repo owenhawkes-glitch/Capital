@@ -2,33 +2,99 @@ import SwiftUI
 import ServiceManagement
 import DuoNotchShared
 
+enum SettingsPage: String, CaseIterable, Identifiable {
+    case accounts, notch, panel, apps, widgets, places, projects, clipboard, appearance, behaviour, about
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .accounts: return "Accounts"
+        case .notch: return "Notch items"
+        case .panel: return "Panel layout"
+        case .apps: return "Apps"
+        case .widgets: return "Widgets"
+        case .places: return "Places"
+        case .projects: return "Projects"
+        case .clipboard: return "Clipboard"
+        case .appearance: return "Appearance"
+        case .behaviour: return "Behaviour"
+        case .about: return "About"
+        }
+    }
+    var symbol: String {
+        switch self {
+        case .accounts: return "person.2"
+        case .notch: return "rectangle.topthird.inset.filled"
+        case .panel: return "square.grid.3x2"
+        case .apps: return "square.grid.2x2"
+        case .widgets: return "clock"
+        case .places: return "folder.badge.gearshape"
+        case .projects: return "terminal"
+        case .clipboard: return "doc.on.clipboard"
+        case .appearance: return "paintpalette"
+        case .behaviour: return "slider.horizontal.3"
+        case .about: return "info.circle"
+        }
+    }
+}
+
+/// Sidebar settings: every page stays visible however many there are.
 struct SettingsView: View {
     @EnvironmentObject private var state: AppState
+    @State private var page: SettingsPage = .notch
 
     var body: some View {
-        TabView {
-            AccountsSettings()
-                .tabItem { Label("Accounts", systemImage: "person.2") }
-            NotchLayoutSettings()
-                .tabItem { Label("Notch", systemImage: "rectangle.topthird.inset.filled") }
-            PanelSettings()
-                .tabItem { Label("Panel", systemImage: "square.grid.3x2") }
-            WidgetsSettings()
-                .tabItem { Label("Widgets", systemImage: "clock") }
-            AppearanceSettings()
-                .tabItem { Label("Appearance", systemImage: "paintpalette") }
-            ProjectsSettings()
-                .tabItem { Label("Projects", systemImage: "folder") }
-            AppsSettings()
-                .tabItem { Label("Apps", systemImage: "square.grid.2x2") }
-            ClipboardSettings()
-                .tabItem { Label("Clipboard", systemImage: "doc.on.clipboard") }
-            BehaviourSettings()
-                .tabItem { Label("Behaviour", systemImage: "slider.horizontal.3") }
-            AboutSettings()
-                .tabItem { Label("About", systemImage: "info.circle") }
+        HStack(spacing: 0) {
+            // Sidebar
+            ScrollView {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(SettingsPage.allCases) { item in
+                        Button {
+                            page = item
+                        } label: {
+                            Label(item.title, systemImage: item.symbol)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(RoundedRectangle(cornerRadius: 6)
+                                    .fill(page == item ? Color.accentColor.opacity(0.25) : Color.clear))
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(10)
+            }
+            .frame(width: 190)
+            .background(Color.secondary.opacity(0.06))
+
+            Divider()
+
+            // Page
+            VStack(alignment: .leading, spacing: 0) {
+                Text(page.title)
+                    .font(.title2.bold())
+                    .padding(.horizontal, 20)
+                    .padding(.top, 14)
+                    .padding(.bottom, 4)
+                Group {
+                    switch page {
+                    case .accounts: AccountsSettings()
+                    case .notch: NotchLayoutSettings()
+                    case .panel: PanelSettings()
+                    case .apps: AppsSettings()
+                    case .widgets: WidgetsSettings()
+                    case .places: PlacesSettings()
+                    case .projects: ProjectsSettings()
+                    case .clipboard: ClipboardSettings()
+                    case .appearance: AppearanceSettings()
+                    case .behaviour: BehaviourSettings()
+                    case .about: AboutSettings()
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
         }
-        .frame(width: 860, height: 680)
+        .frame(minWidth: 980, minHeight: 680)
         .onAppear {
             NSApp.activate(ignoringOtherApps: true)
             state.refreshHooksInstalled()

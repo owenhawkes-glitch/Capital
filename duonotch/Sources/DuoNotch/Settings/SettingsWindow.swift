@@ -15,9 +15,9 @@ final class SettingsWindow {
             let hosting = NSHostingController(rootView: SettingsView().environmentObject(state))
             let window = NSWindow(contentViewController: hosting)
             window.title = "DuoNotch Settings"
-            window.styleMask = [.titled, .closable, .miniaturizable]
+            window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
             window.isReleasedWhenClosed = false
-            window.setContentSize(NSSize(width: 620, height: 560))
+            window.setContentSize(NSSize(width: 1000, height: 700))
             window.center()
             self.window = window
         }

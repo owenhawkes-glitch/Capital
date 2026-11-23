@@ -109,10 +109,11 @@ final class AppState: ObservableObject {
         guard panelLayout == .row else { return panelWidth }
         // On a side edge the row runs along the edge: one column, stacked.
         if placement == .left || placement == .right {
-            return PanelMetrics.wideColumn + 2 * PanelMetrics.sidePadding
+            let widest = shownPanelModules.map { $0.cardSize.width }.max() ?? PanelMetrics.wideColumn
+            return max(widest, PanelMetrics.wideColumn) + 2 * PanelMetrics.sidePadding
         }
-        let columns = shownPanelModules
-        let sum = columns.reduce(0) { $0 + ($1.fullWidth ? PanelMetrics.wideColumn : PanelMetrics.narrowColumn) }
+        let columns = rowColumns
+        let sum = columns.reduce(0) { $0 + Self.columnWidth($1) }
         let total = sum + PanelMetrics.spacing * CGFloat(max(columns.count - 1, 0)) + 2 * PanelMetrics.sidePadding
         return min(max(total, 420), maxWidth)
     }
@@ -136,7 +137,40 @@ final class AppState: ObservableObject {
 
     func toggleWidth(_ module: PanelModule) {
         guard let i = panelModules.firstIndex(where: { $0.module == module }) else { return }
-        panelModules[i].fullWidth.toggle()
+        panelModules[i].cardSize = panelModules[i].cardSize >= .large ? .medium : .large
+    }
+
+    func resize(_ module: PanelModule, by delta: Int) {
+        guard let i = panelModules.firstIndex(where: { $0.module == module }),
+              let next = CardSize(rawValue: panelModules[i].cardSize.rawValue + delta) else { return }
+        panelModules[i].cardSize = next
+    }
+
+    /// The long row's columns: small and medium cards stack two to a column.
+    var rowColumns: [[PanelModuleConfig]] {
+        var columns: [[PanelModuleConfig]] = []
+        for config in shownPanelModules {
+            if config.cardSize.stacks, let last = columns.last, last.count == 1, last[0].cardSize.stacks {
+                columns[columns.count - 1].append(config)
+            } else {
+                columns.append([config])
+            }
+        }
+        return columns
+    }
+
+    static func columnWidth(_ column: [PanelModuleConfig]) -> CGFloat {
+        column.map { $0.cardSize.width }.max() ?? CardSize.medium.width
+    }
+
+    /// Both logins, or just one (nil = both).
+    @Published var accountFilter: String? {
+        didSet { defaults.set(accountFilter, forKey: "accountFilter") }
+    }
+
+    var shownAccounts: [Account] {
+        guard let accountFilter, enabledAccounts.contains(where: { $0.id == accountFilter }) else { return enabledAccounts }
+        return enabledAccounts.filter { $0.id == accountFilter }
     }
 
     func isEnabled(_ module: PanelModule) -> Bool {
@@ -252,6 +286,7 @@ final class AppState: ObservableObject {
         panelWidth = width >= 450 ? width : 600
         floatingOpensOnClick = stored.object(forKey: Keys.floatingClick) as? Bool ?? true
         panelCompact = stored.bool(forKey: "panelCompact")
+        accountFilter = stored.string(forKey: "accountFilter")
         PanelMetrics.compact = stored.bool(forKey: "panelCompact")
         let scale = stored.double(forKey: Keys.notchScale)
         notchScale = scale >= 0.8 ? scale : 1
@@ -717,7 +752,8 @@ final class AppState: ObservableObject {
                                    enabled: shownAccounts.count < 2, colorHex: AccountPalette.preset(at: index).hex))
         }
         for (index, app) in AppShortcutStore.shared.shortcuts.enumerated() where !has(.app(app.id)) {
-            items.append(NotchItem(kind: .app(app.id), side: .right, enabled: false,
+            // Freshly added apps show straight away (the user just asked for them).
+            items.append(NotchItem(kind: .app(app.id), side: .right, enabled: !notchItems.isEmpty,
                                    colorHex: AccountPalette.preset(at: index + 2).hex))
         }
         for (index, link) in LinkStore.shared.links.enumerated() where !has(.link(link.id)) {

@@ -67,6 +67,7 @@ final class AppearanceStore: ObservableObject {
 
     @Published var theme: NotchTheme { didSet { save(theme.rawValue, "appearance.theme") } }
     @Published var glowBorder: Bool { didSet { save(glowBorder, "appearance.glow") } }
+    @Published var blackWhenClosed: Bool { didSet { save(blackWhenClosed, "appearance.blackWhenClosed") } }
     @Published var openAnimation: OpenAnimation { didSet { save(openAnimation.rawValue, "appearance.animation") } }
     /// SF Symbol for the notch icon item.
     @Published var logoSymbol: String { didSet { save(logoSymbol, "appearance.logoSymbol") } }
@@ -81,6 +82,7 @@ final class AppearanceStore: ObservableObject {
         let d = UserDefaults.standard
         theme = NotchTheme(rawValue: d.string(forKey: "appearance.theme") ?? "") ?? .black
         glowBorder = d.bool(forKey: "appearance.glow")
+        blackWhenClosed = d.bool(forKey: "appearance.blackWhenClosed")
         openAnimation = OpenAnimation(rawValue: d.string(forKey: "appearance.animation") ?? "") ?? .spring
         logoSymbol = d.string(forKey: "appearance.logoSymbol") ?? "sparkles"
         logoImagePath = d.string(forKey: "appearance.logoImage")
@@ -102,7 +104,7 @@ struct NotchBackground: View {
     var expanded: Bool
 
     var body: some View {
-        if look.theme == .black {
+        if look.theme == .black || (look.blackWhenClosed && !expanded) {
             Color.black
         } else {
             TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in

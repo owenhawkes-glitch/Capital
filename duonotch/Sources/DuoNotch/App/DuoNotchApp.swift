@@ -51,6 +51,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         state.start()
         notch = NotchController(state: state)
         notch?.show()
+        if ProcessInfo.processInfo.environment["DUONOTCH_SETTINGS"] == "1" {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { AppState.openSettings() }
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {

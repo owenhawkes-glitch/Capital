@@ -23,6 +23,7 @@ struct AppearanceSettings: View {
                         .buttonStyle(.plain)
                     }
                 }
+                Toggle("Keep the closed notch black; use the theme only when it opens", isOn: $look.blackWhenClosed)
                 Toggle("Glowing edge that slowly travels around the notch", isOn: $look.glowBorder)
             }
             Section("Animation") {
@@ -206,14 +207,15 @@ struct WidgetsSettings: View {
                     Text("Mirror")
                     Picker("", selection: $mirror.targetBundleID) {
                         Text("Spotify").tag("com.spotify.client")
-                        ForEach(mirror.candidates.filter { $0.bundleID != "com.spotify.client" }) { c in
+                        Text("Parsec").tag("tv.parsec.www")
+                        ForEach(mirror.candidates.filter { !["com.spotify.client", "tv.parsec.www"].contains($0.bundleID) }) { c in
                             Text(c.appName).tag(c.bundleID)
                         }
                     }
                     .labelsHidden()
                     Button("Refresh list") { Task { await mirror.refreshCandidates() } }
                 }
-                Text("Turn on \"Live window\" in Settings → Panel. It shows that app's window live, e.g. a Spotify video podcast, and needs Screen Recording permission. The app's window must be open (it can be behind others, not minimised). Rebuilding DuoNotch can make macOS ask for the permission again.")
+                Text("Turn on \"Live window\" in Settings → Panel. It shows that app's window live, e.g. a Spotify video podcast or a Parsec session, and needs Screen Recording permission. The app's window must be open (it can be behind others, not minimised). Rebuilding DuoNotch can make macOS ask for the permission again.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }

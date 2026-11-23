@@ -17,6 +17,13 @@ final class WindowMirror: NSObject, ObservableObject {
         let title: String
     }
 
+    /// One-click choices in the Live section (only those installed).
+    static var favourites: [(id: String, name: String)] {
+        [("com.spotify.client", "Spotify"), ("tv.parsec.www", "Parsec")].filter {
+            NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0.id) != nil
+        }
+    }
+
     @Published private(set) var frame: CGImage?
     @Published private(set) var status: String = "Not started"
     @Published private(set) var needsPermission = false

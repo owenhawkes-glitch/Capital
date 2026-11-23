@@ -44,7 +44,7 @@ struct ExpandedPanel: View {
                     VStack(spacing: PanelMetrics.spacing) {
                         ForEach(shown) { config in
                             ArrangeTile(state: state, config: config, half: true)
-                                .frame(width: PanelMetrics.wideColumn, alignment: .top)
+                                .frame(width: width - 2 * PanelMetrics.sidePadding, alignment: .top)
                         }
                     }
                     .background(GeometryReader { proxy in
@@ -59,9 +59,13 @@ struct ExpandedPanel: View {
             } else if state.panelLayout == .row {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(alignment: .top, spacing: PanelMetrics.spacing) {
-                        ForEach(shown) { config in
-                            ArrangeTile(state: state, config: config, half: true)
-                                .frame(width: config.fullWidth ? PanelMetrics.wideColumn : PanelMetrics.narrowColumn, alignment: .top)
+                        ForEach(state.rowColumns, id: \.first!.id) { column in
+                            VStack(spacing: PanelMetrics.spacing) {
+                                ForEach(column) { config in
+                                    ArrangeTile(state: state, config: config, half: true)
+                                }
+                            }
+                            .frame(width: AppState.columnWidth(column), alignment: .top)
                         }
                     }
                 }
@@ -142,12 +146,17 @@ struct ModuleView: View {
         switch module {
         case .accounts:
             let layout = half ? AnyLayout(VStackLayout(spacing: 10)) : AnyLayout(HStackLayout(alignment: .top, spacing: 12))
-            layout {
-                if state.enabledAccounts.isEmpty {
-                    EmptyAccountsCard()
-                } else {
-                    ForEach(state.enabledAccounts) { account in
-                        AccountCard(state: state, account: account)
+            VStack(alignment: .leading, spacing: 6) {
+                if state.enabledAccounts.count > 1 {
+                    AccountFilterBar(state: state)
+                }
+                layout {
+                    if state.enabledAccounts.isEmpty {
+                        EmptyAccountsCard()
+                    } else {
+                        ForEach(state.shownAccounts) { account in
+                            AccountCard(state: state, account: account)
+                        }
                     }
                 }
             }
@@ -161,6 +170,8 @@ struct ModuleView: View {
             WindowMirrorCard()
         case .links:
             LinksCard()
+        case .places:
+            PlacesCard(state: state)
         case .clocks:
             ClocksCard()
         case .weather:
@@ -362,6 +373,7 @@ struct MediaCard: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: size, weight: .semibold))
+                .offset(x: symbol.hasPrefix("play") ? size * 0.08 : 0)
                 .frame(width: 22, height: 20)
                 .contentShape(Rectangle())
         }
@@ -599,7 +611,13 @@ struct ArrangeTile: View {
                         Image(systemName: "line.3.horizontal")
                         Text(config.module.title).lineLimit(1)
                         Spacer(minLength: 4)
-                        Button(config.fullWidth ? "Narrow" : "Wide") { state.toggleWidth(config.module) }
+                        Button { state.resize(config.module, by: -1) } label: { Image(systemName: "minus") }
+                            .disabled(config.cardSize == .small)
+                            .help("Smaller")
+                        Text(config.cardSize.name).frame(minWidth: 14)
+                        Button { state.resize(config.module, by: 1) } label: { Image(systemName: "plus") }
+                            .disabled(config.cardSize == .xlarge)
+                            .help("Bigger")
                         Button { state.setModule(config.module, enabled: false) } label: { Image(systemName: "eye.slash") }
                             .help("Hide this section")
                     }
@@ -658,16 +676,23 @@ struct WindowMirrorCard: View {
     var body: some View {
         card {
             VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text("Live: \(mirror.targetName)")
-                        .font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    Text("Live").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
+                    ForEach(WindowMirror.favourites, id: \.id) { fav in
+                        Button(fav.name) { mirror.targetBundleID = fav.id }
+                            .buttonStyle(.plain)
+                            .font(.system(size: 9, weight: .semibold))
+                            .padding(.horizontal, 7).padding(.vertical, 2)
+                            .background(Capsule().fill(mirror.targetBundleID == fav.id ? Color.white.opacity(0.2) : Color.white.opacity(0.06)))
+                    }
                     Spacer()
                     Menu {
                         ForEach(mirror.candidates) { c in
                             Button(c.appName) { mirror.targetBundleID = c.bundleID }
                         }
                     } label: {
-                        Text("Change").font(.system(size: 9))
+                        Text(WindowMirror.favourites.contains { $0.id == mirror.targetBundleID } ? "Other…" : mirror.targetName)
+                            .font(.system(size: 9))
                     }
                     .menuStyle(.borderlessButton)
                     .fixedSize()
@@ -774,5 +799,38 @@ struct FlowLayout: Layout {
             x += size.width + spacing
             rowHeight = max(rowHeight, size.height)
         }
+    }
+}
+
+/// Both / A / B switch for the Claude section.
+struct AccountFilterBar: View {
+    @ObservedObject var state: AppState
+
+    var body: some View {
+        HStack(spacing: 4) {
+            chip("Both", color: nil, selected: state.accountFilter == nil) { state.accountFilter = nil }
+            ForEach(state.enabledAccounts) { account in
+                chip(account.label, color: account.color, selected: state.accountFilter == account.id) {
+                    state.accountFilter = account.id
+                }
+            }
+            Spacer()
+        }
+    }
+
+    private func chip(_ title: String, color: Color?, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                if let color { Circle().fill(color).frame(width: 6, height: 6) }
+                Text(title).lineLimit(1).truncationMode(.middle)
+            }
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundStyle(selected ? Color.white : Color.secondary)
+            .padding(.horizontal, 8).padding(.vertical, 3)
+            .frame(maxWidth: 170)
+            .background(Capsule().fill(Color.white.opacity(selected ? 0.18 : 0.05)))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
     }
 }

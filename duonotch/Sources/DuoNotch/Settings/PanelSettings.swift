@@ -38,13 +38,13 @@ struct PanelSettings: View {
                         Toggle("", isOn: $config.enabled).labelsHidden()
                         Text(config.module.title)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                        Picker("", selection: $config.fullWidth) {
-                            Text(state.panelLayout == .row ? "Narrow" : "Half").tag(false)
-                            Text(state.panelLayout == .row ? "Wide" : "Full").tag(true)
+                        Picker("", selection: $config.cardSize) {
+                            ForEach(CardSize.allCases) { Text($0.name).tag($0) }
                         }
                         .pickerStyle(.segmented)
                         .labelsHidden()
-                        .frame(width: 110)
+                        .frame(width: 150)
+                        .help("Card size. Small and medium cards stack two to a column in the long row.")
                         .disabled(state.panelLayout == .tabs)
                         OrderButtons(
                             canMoveUp: state.panelModules.first?.id != config.id,

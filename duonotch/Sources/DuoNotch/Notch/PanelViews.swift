@@ -636,10 +636,22 @@ struct ArrangeTile: View {
                         Button { state.resize(config.module, by: 1) } label: { Image(systemName: "plus") }
                             .disabled(config.cardSize == .xlarge)
                             .help("Bigger")
-                        Button { state.toggleStack(config.module) } label: {
-                            Image(systemName: state.isStacked(config.module) ? "rectangle.split.2x1" : "rectangle.split.1x2")
+                        Menu {
+                            Button("Own column") { state.unstack(config.module) }
+                                .disabled(!state.isStacked(config.module))
+                            Divider()
+                            ForEach(state.shownPanelModules.filter { $0.module != config.module }) { other in
+                                Button("Under \(other.module.shortTitle)") {
+                                    withAnimation(.easeOut(duration: 0.2)) { state.stack(config.module, under: other.module) }
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "rectangle.split.1x2")
                         }
-                        .help(state.isStacked(config.module) ? "Move to its own column" : "Put under the card before it")
+                        .menuStyle(.borderlessButton)
+                        .menuIndicator(.hidden)
+                        .fixedSize()
+                        .help("Put this card under another card")
                         Button { state.setModule(config.module, enabled: false) } label: { Image(systemName: "eye.slash") }
                             .help("Hide this section")
                     }

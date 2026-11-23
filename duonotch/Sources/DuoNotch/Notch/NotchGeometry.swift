@@ -81,7 +81,11 @@ enum NotchMetrics {
         let items = strip.all
         switch placement {
         case .top:
-            return CGSize(width: (g.hasHardwareNotch ? g.notchWidth : fakeGap) + 2 * strip.wingWidth, height: g.notchHeight)
+            if !g.hasHardwareNotch {
+                // No camera to work around: one centred group, as wide as it needs.
+                return CGSize(width: max(NotchStrip.width(of: strip.all) + 8, 80), height: g.notchHeight)
+            }
+            return CGSize(width: g.notchWidth + 2 * strip.wingWidth, height: g.notchHeight)
         case .left, .right:
             let h = items.reduce(0) { $0 + $1.height } + NotchStrip.spacing * 1.25 * CGFloat(max(items.count - 1, 0)) + 20
             return CGSize(width: sideWidth, height: max(h, 52))

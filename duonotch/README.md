@@ -202,7 +202,8 @@ permission is needed for launching.
 Right-click the notch → **Position**, or Settings → Behaviour:
 
 - **Top centre (notch)**: sits in the camera housing, or draws a fake notch
-  exactly as tall as the menu bar on screens without one
+  exactly as tall as the menu bar on screens without one. Without a camera
+  notch, all items form one centred group; with one, they split either side
 - **Left edge / Right edge**: a strip at mid-height with your items stacked.
   On hover the strip stays against the edge and the panel opens beside it,
   outward into the screen (rightward from the left edge, leftward from the
@@ -277,6 +278,9 @@ Click **Arrange** in the open notch's top bar. Each section gets a dashed
 frame: drag it onto the **top half** of another card to place it before
 that card, or onto the **bottom half** to stack it underneath (e.g. Links
 under Spotify). The stack button does the same for the card before it.
+The **Put under…** menu on each card (and the "Stack under" choice in
+Settings → Panel layout) moves a card to the bottom of any other card's
+column, no dragging needed, e.g. File shelf under Quick links.
 Use **−/+** to size cards (S, M, L, XL) and the eye to hide one. Small and
 medium cards you haven't placed yourself pair up automatically. Hidden sections show as chips at the bottom so you can bring
 them back. Click **Done** when finished. Settings → Panel → **Compact**

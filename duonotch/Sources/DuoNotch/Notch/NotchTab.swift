@@ -39,6 +39,24 @@ enum PanelModule: String, CaseIterable, Codable, Identifiable {
         case .clipboard: return "Clipboard"
         }
     }
+    /// Short name for menus.
+    var shortTitle: String {
+        switch self {
+        case .accounts: return "Claude"
+        case .approvals: return "Approvals"
+        case .projects: return "Projects"
+        case .clocks: return "Clocks"
+        case .weather: return "Weather"
+        case .markets: return "Markets"
+        case .media: return "Now playing"
+        case .window: return "Live window"
+        case .links: return "Quick links"
+        case .places: return "Places"
+        case .files: return "File shelf"
+        case .clipboard: return "Clipboard"
+        }
+    }
+
     var tab: NotchTab {
         switch self {
         case .accounts, .approvals, .projects: return .claude

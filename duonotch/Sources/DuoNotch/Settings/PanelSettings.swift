@@ -51,6 +51,23 @@ struct PanelSettings: View {
                         .frame(width: 150)
                         .help("Card size. Small and medium cards stack two to a column in the long row.")
                         .disabled(state.panelLayout == .tabs)
+                        Picker("", selection: Binding(
+                            get: { state.stackedUnder(config.module)?.rawValue ?? "" },
+                            set: { value in
+                                if let target = PanelModule(rawValue: value) {
+                                    state.stack(config.module, under: target)
+                                } else {
+                                    state.unstack(config.module)
+                                }
+                            })) {
+                            Text("Own column").tag("")
+                            ForEach(state.panelModules.filter { $0.module != config.module && $0.enabled }) { other in
+                                Text("Under \(other.module.shortTitle)").tag(other.module.rawValue)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(width: 160)
+                        .disabled(state.panelLayout == .tabs || !config.enabled)
                         OrderButtons(
                             canMoveUp: state.panelModules.first?.id != config.id,
                             canMoveDown: state.panelModules.last?.id != config.id,

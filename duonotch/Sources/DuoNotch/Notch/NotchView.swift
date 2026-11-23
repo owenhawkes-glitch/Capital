@@ -196,6 +196,21 @@ private struct CollapsedStrip: View {
 
     var body: some View {
         let strip = state.strip
+        if !geometry.hasHardwareNotch {
+            // Screens without a camera notch: all items in one centred row.
+            HStack(spacing: NotchStrip.spacing) {
+                ForEach(strip.all) { item in
+                    NotchItemView(state: state, item: item)
+                        .reorderTarget(id: item.id.uuidString) { state.moveNotchItem(dragged: $0, onto: $1) }
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            split(strip)
+        }
+    }
+
+    private func split(_ strip: NotchStrip) -> some View {
         HStack(spacing: 0) {
             wing(strip.left, alignment: .trailing)
                 .frame(width: strip.wingWidth)

@@ -172,6 +172,34 @@ final class AppState: ObservableObject {
         panelModules[i].stackUnder = !stacked
     }
 
+    /// Moves a card to the bottom of another card's column.
+    func stack(_ module: PanelModule, under target: PanelModule) {
+        guard module != target,
+              let column = rowColumns.first(where: { $0.contains { $0.module == target } }),
+              let anchor = column.last?.module == module ? column.dropLast().last?.module : column.last?.module,
+              let from = panelModules.firstIndex(where: { $0.module == module }) else { return }
+        var modules = panelModules
+        var item = modules.remove(at: from)
+        item.stackUnder = true
+        guard let to = modules.firstIndex(where: { $0.module == anchor }) else { return }
+        modules.insert(item, at: to + 1)
+        panelModules = modules
+    }
+
+    /// Takes a card out of its stack into its own column.
+    func unstack(_ module: PanelModule) {
+        guard let i = panelModules.firstIndex(where: { $0.module == module }) else { return }
+        panelModules[i].stackUnder = false
+    }
+
+    /// The card this one sits under, if any.
+    func stackedUnder(_ module: PanelModule) -> PanelModule? {
+        for column in rowColumns {
+            if let i = column.firstIndex(where: { $0.module == module }), i > 0 { return column[i - 1].module }
+        }
+        return nil
+    }
+
     func isStacked(_ module: PanelModule) -> Bool {
         rowColumns.contains { $0.count > 1 && $0.dropFirst().contains { $0.module == module } }
     }
@@ -330,6 +358,12 @@ final class AppState: ObservableObject {
         pinnedOpen = ProcessInfo.processInfo.environment["DUONOTCH_OPEN"] == "1"
         selectedTab = NotchTab(rawValue: ProcessInfo.processInfo.environment["DUONOTCH_TAB"] ?? "") ?? .claude
         arranging = ProcessInfo.processInfo.environment["DUONOTCH_ARRANGE"] == "1"
+        // Debug aid: DUONOTCH_STACK=files>links stacks Files under Links at launch.
+        if let spec = ProcessInfo.processInfo.environment["DUONOTCH_STACK"],
+           case let parts = spec.split(separator: ">").map(String.init), parts.count == 2,
+           let a = PanelModule(rawValue: parts[0]), let b = PanelModule(rawValue: parts[1]) {
+            DispatchQueue.main.async { AppState.shared.stack(a, under: b) }
+        }
         showMenuBarText = stored.bool(forKey: Keys.menuBarText)
         demoMode = stored.bool(forKey: Keys.demoMode)
             || ProcessInfo.processInfo.environment["DUONOTCH_DEMO"] == "1"

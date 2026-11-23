@@ -414,8 +414,26 @@ final class AppState: ObservableObject {
         lastRefresh = Date()
     }
 
+    /// Read usage with the keychain token (prompts) instead of `claude /usage`.
+    @Published var useKeychainForUsage: Bool = UserDefaults.standard.bool(forKey: "usage.keychain") {
+        didSet { defaults.set(useKeychainForUsage, forKey: "usage.keychain") }
+    }
+    private var lastCLIFetch: [String: Date] = [:]
+
     func refresh(_ account: Account) async {
         if let until = backoffUntil[account.id], until > Date() { return }
+        if !useKeychainForUsage {
+            // Each run costs a few seconds of CPU, so not more than every 2 minutes.
+            if let last = lastCLIFetch[account.id], Date().timeIntervalSince(last) < 110 { return }
+            lastCLIFetch[account.id] = Date()
+            do {
+                readings[account.id] = try await ClaudeCLIUsage.fetch(configDir: account.configDir)
+                errors[account.id] = nil
+            } catch {
+                errors[account.id] = error.localizedDescription
+            }
+            return
+        }
 
         let loaded = await Task.detached(priority: .utility) {
             CredentialStore.load(for: account)

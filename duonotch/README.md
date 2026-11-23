@@ -76,7 +76,20 @@ one ring per directory. Settings → Accounts lets you rename, recolour,
 disable or remove each one. Labels default to the email in that login's
 `.claude.json`.
 
-### Where the token comes from
+### Where usage comes from
+
+By default DuoNotch runs `claude -p /usage` for each login (with
+`CLAUDE_CONFIG_DIR` for the second one) and reads the same numbers Claude
+Code's `/usage` shows. Claude Code reads its own login, so DuoNotch never
+touches the keychain and macOS never prompts. No model is called; each check
+takes a few seconds and runs at most every two minutes per login. The plan
+name comes from the login's `.claude.json`.
+
+The older keychain method below is still available (Settings → Accounts),
+but macOS will ask for keychain access, and asks again whenever Claude Code
+renews its token or DuoNotch is rebuilt.
+
+### Where the token comes from (keychain method)
 
 For each login DuoNotch looks, in order, at:
 

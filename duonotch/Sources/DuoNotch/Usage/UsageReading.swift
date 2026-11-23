@@ -19,6 +19,8 @@ struct UsageReading: Equatable {
     var weeklyOpus: UsageWindow?
     var weeklySonnet: UsageWindow?
     var subscriptionType: String?
+    /// Weekly windows for individual models (e.g. "Opus", "Fable").
+    var modelWeeks: [String: UsageWindow] = [:]
 
     /// What the small collapsed ring shows.
     var headline: UsageWindow? { session ?? weekly }

@@ -89,6 +89,9 @@ private enum HookClient {
     }
 }
 
+// DuoNotch's own background `claude -p /usage` runs set this; ignore them.
+if ProcessInfo.processInfo.environment["DUONOTCH_INTERNAL"] == "1" { exit(0) }
+
 let input = FileHandle.standardInput.readDataToEndOfFile()
 guard !input.isEmpty,
       let payload = try? JSONDecoder().decode(HookPayload.self, from: input) else {

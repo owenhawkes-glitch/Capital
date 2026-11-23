@@ -275,6 +275,11 @@ struct AccountCard: View {
                 if let opus = reading.weeklyOpus {
                     UsageRow(title: "Opus", window: opus, color: account.color)
                 }
+                ForEach(reading.modelWeeks.keys.sorted(), id: \.self) { model in
+                    if let window = reading.modelWeeks[model] {
+                        UsageRow(title: model, window: window, color: account.color)
+                    }
+                }
             } else {
                 Text(state.errors[account.id] ?? "Waiting for first reading…")
                     .font(.system(size: 10))

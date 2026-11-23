@@ -120,6 +120,8 @@ private struct AccountsSettings: View {
                 .padding(6)
                 .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.12)))
 
+            Toggle("Read usage from the keychain instead of `claude /usage` (makes macOS ask for keychain access)", isOn: $state.useKeychainForUsage)
+                .font(.caption)
             List {
                 ForEach($state.accounts) { $account in
                     AccountRow(account: $account, installMessage: $installMessage)

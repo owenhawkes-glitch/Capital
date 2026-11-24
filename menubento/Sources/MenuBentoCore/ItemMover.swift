@@ -64,6 +64,22 @@ public enum ItemMover {
         return true
     }
 
+    /// The accessibility label (description or title) of whatever is on
+    /// screen at a point, in top-left coordinates. Used to make sure a drag
+    /// starts on the item we mean to move, never on a neighbour.
+    public static func label(at p: CGPoint) -> String? {
+        guard AXIsProcessTrusted() else { return nil }
+        var element: AXUIElement?
+        guard AXUIElementCopyElementAtPosition(AXUIElementCreateSystemWide(), Float(p.x), Float(p.y), &element) == .success,
+              let element else { return nil }
+        for attribute in [kAXDescriptionAttribute, kAXTitleAttribute] {
+            var value: CFTypeRef?
+            if AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success,
+               let text = value as? String, !text.isEmpty { return text }
+        }
+        return nil
+    }
+
     /// Clicks at a point (used for items that don't support AXPress).
     public static func click(at p: CGPoint) {
         guard AXIsProcessTrusted(), let src = CGEventSource(stateID: .hidSystemState) else { return }

@@ -49,7 +49,10 @@ final class AppModel: ObservableObject {
         // Start hidden only once the menu bar has placed our items.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
             self?.setState(.hidden)
-            Task { await self?.refresh() }
+            Task {
+                await self?.placeBoostersIfNeeded()
+                await self?.refresh()
+            }
         }
         Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in
             Task { @MainActor in
@@ -70,7 +73,6 @@ final class AppModel: ObservableObject {
     func setState(_ new: BarState) {
         state = new
         controls.apply(new)
-        if !controls.boostersPlaced { Task { await placeBoostersIfNeeded() } }
         HoverWatcher.shared.stateChanged()
         if new != .hidden {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
@@ -240,13 +242,75 @@ final class AppModel: ObservableObject {
         try? await Task.sleep(for: .milliseconds(400))
         for _ in 0..<3 {
             guard let (booster, separator) = controls.misplacedBoosters.first,
-                  let from = controls.frame(of: booster), let to = controls.frame(of: separator) else { break }
-            await Task.detached { _ = ItemMover.drag(from: from, to: .leftOf(to)) }.value
-            try? await Task.sleep(for: .milliseconds(300))
+                  let from = controls.frame(of: booster), let to = controls.frame(of: separator),
+                  let wanted = booster.button?.accessibilityLabel() else { break }
+            // Only drag if the pointer would really pick up the booster;
+            // a stale frame must never move a separator or someone's item.
+            let moved = await Task.detached { () -> Bool in
+                let start = CGPoint(x: from.midX, y: from.midY)
+                guard ItemMover.label(at: start) == wanted else { return false }
+                return ItemMover.drag(from: from, to: .leftOf(to))
+            }.value
+            if !moved { break }
+            try? await Task.sleep(for: .milliseconds(400))
         }
         controls.setBoostersGrabbable(false)
         controls.apply(state)
         placingBoosters = false
+    }
+
+    /// Puts MenuBento's own items back in their standard order with every
+    /// other item in Hidden:
+    ///   [booster][«] … every other item … [booster][‹][MenuBento icon]
+    /// Only MenuBento's own items are dragged; each drag first checks the
+    /// item under the pointer really is the one being moved.
+    func hideEverything() async {
+        guard busy == nil else { return }
+        guard AXIsProcessTrusted() else {
+            lastMessage = "Resetting the layout needs Accessibility permission (Settings → Permissions)."
+            return
+        }
+        busy = "Resetting the layout…"
+        BentoBar.shared.close()
+        controls.apply(.showAll)
+        controls.setBoostersGrabbable(true)
+        try? await Task.sleep(for: .milliseconds(700))
+
+        // 1. The Hidden separator immediately left of the icon.
+        if let icon = controls.frame(of: controls.main), let sep = controls.frame(of: controls.hiddenSeparator),
+           !(sep.maxX <= icon.minX + 1 && icon.minX - sep.maxX < 16) {
+            await safeDrag(controls.hiddenSeparator, to: .leftOf(icon))
+        }
+        // 2. The Always-hidden separator left of everything else.
+        let others = await refresh().filter { !$0.isOurs && $0.frame.width < 400 }
+        if let leftmost = others.min(by: { $0.frame.minX < $1.frame.minX }),
+           let sep = controls.frame(of: controls.alwaysSeparator), sep.minX > leftmost.frame.minX {
+            await safeDrag(controls.alwaysSeparator, to: .leftOf(leftmost.frame))
+        }
+        // 3. Each booster immediately left of its separator.
+        for (booster, separator) in [(controls.hiddenBooster, controls.hiddenSeparator), (controls.alwaysBooster, controls.alwaysSeparator)] {
+            if let b = controls.frame(of: booster), let s = controls.frame(of: separator) {
+                let gap = s.minX - b.maxX
+                if gap < -1 || gap > 16 { await safeDrag(booster, to: .leftOf(s)) }
+            }
+        }
+        controls.setBoostersGrabbable(false)
+        busy = nil
+        setState(.hidden)
+        try? await Task.sleep(for: .milliseconds(500))
+        await refresh()
+        lastMessage = controls.boostersPlaced ? "Everything is hidden. Click the icon to show." : "Couldn't put everything in place; try again."
+    }
+
+    /// ⌘-drags one of MenuBento's own items, but only if the pointer would
+    /// really pick that item up.
+    private func safeDrag(_ item: NSStatusItem, to placement: Placement) async {
+        guard let from = controls.frame(of: item), let wanted = item.button?.accessibilityLabel() else { return }
+        _ = await Task.detached { () -> Bool in
+            guard ItemMover.label(at: CGPoint(x: from.midX, y: from.midY)) == wanted else { return false }
+            return ItemMover.drag(from: from, to: placement)
+        }.value
+        try? await Task.sleep(for: .milliseconds(450))
     }
 
     // MARK: - Groups

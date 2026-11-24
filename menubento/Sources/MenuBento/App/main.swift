@@ -9,6 +9,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         HoverWatcher.shared.start()
         BarOverlay.shared.start()
         let env = ProcessInfo.processInfo.environment
+        if env["MENUBENTO_HIDE_EVERYTHING"] == "1" {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5) { Task { await AppModel.shared.hideEverything() } }
+        }
         if env["MENUBENTO_SETTINGS"] == "1" || !UserDefaults.standard.bool(forKey: "model.launchedBefore") {
             UserDefaults.standard.set(true, forKey: "model.launchedBefore")
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) {

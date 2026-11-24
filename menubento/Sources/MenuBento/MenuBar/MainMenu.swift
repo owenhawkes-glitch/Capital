@@ -13,6 +13,9 @@ enum MainMenu {
         menu.addItem(action(model.state == .showAll ? "Hide always-hidden items" : "Show everything", symbol: "eye.circle") {
             model.setState(model.state == .showAll ? .hidden : .showAll)
         })
+        menu.addItem(action("Hide everything (reset layout)", symbol: "arrow.uturn.backward") {
+            Task { await model.hideEverything() }
+        })
         menu.addItem(action("Open MenuBento bar", symbol: "menubar.dock.rectangle") {
             BentoBar.shared.show()
         })

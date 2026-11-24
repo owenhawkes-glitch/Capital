@@ -78,6 +78,8 @@ final class AppModel: ObservableObject {
             }
         }
         BarOverlay.shared.setNeedsUpdate()
+        // Again once the menu bar has laid the items out at their new places.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { BarOverlay.shared.setNeedsUpdate() }
     }
 
     func toggle() {

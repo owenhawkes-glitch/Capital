@@ -126,19 +126,28 @@ final class BarOverlay {
         // distance from the right edge, so measure from the right.
         let itemScreen = controls.screenOfMain ?? screen
         let itemTopLeft = itemScreen.frame.flippedToTopLeft
-        let mid = itemTopLeft.midX
-        var lefts: [CGFloat] = []
+        // Where the drawn status items start. Our own separators know this
+        // exactly: an expanded separator pushes everything to its left off
+        // the screen, so the visible items start at its right edge.
+        // (Other apps' frames can be stale for items that are off screen.)
+        let leftMost: CGFloat
+        let hidden = controls.frame(of: controls.hiddenSeparator)
+        let always = controls.frame(of: controls.alwaysSeparator)
+        if let hidden, hidden.width > 40 {
+            leftMost = hidden.maxX
+        } else if let always, always.width > 40 {
+            leftMost = always.maxX
+        } else {
+            // Showing everything: the leftmost item on this screen.
+            let onScreen = model.items.filter { $0.frame.minX >= itemTopLeft.minX && $0.frame.width < itemTopLeft.width / 4 }
+            leftMost = (onScreen.map(\.frame.minX) + [controls.frame(of: controls.main)?.minX].compactMap { $0 }).min()
+                ?? (itemTopLeft.maxX - 200)
+        }
         var cells: [CGRect] = []
-        for item in model.items where item.frame.minX >= mid - 2 && item.frame.maxX <= itemTopLeft.maxX + 1 {
+        for item in model.items where item.frame.minX >= leftMost - 1 && item.frame.maxX <= itemTopLeft.maxX + 1 {
             if item.frame.width > itemTopLeft.width / 4 { continue } // an expanded separator
-            lefts.append(item.frame.minX)
             cells.append(item.frame)
         }
-        if let main = controls.frame(of: controls.main) { lefts.append(main.minX) }
-        if let h = controls.frame(of: controls.hiddenSeparator) {
-            lefts.append(h.width > 40 ? h.maxX : h.minX)
-        }
-        let leftMost = lefts.filter { $0 >= mid - 2 }.min() ?? (itemTopLeft.maxX - 200)
         g.statusLeft = screen.frame.width - (itemTopLeft.maxX - leftMost)
         let shift = topLeft.maxX - itemTopLeft.maxX
         g.cells = cells.map { CGRect(x: $0.minX + shift - topLeft.minX, y: 0, width: $0.width, height: barHeight) }

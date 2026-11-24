@@ -10,20 +10,84 @@ Plain Swift package, no Xcode project. It runs as an accessory app
 (`LSUIElement`), so it has no Dock icon: you'll find it in the menu bar as
 a 2×2 grid icon.
 
-## Build and run
+## Install
 
 ```bash
 cd menubento
+echo 'SIGN_ID = MenuBento Dev' > sign.mk   # once; see "Signing" below
+make install
+```
+
+`make install` does a release build, quits the running copy (and waits
+until it has really exited), replaces `/Applications/MenuBento.app` and
+opens it. The first time, Settings opens on **Permissions**: grant
+Accessibility (and Screen Recording if you want pictures in the MenuBento
+bar). Then right-click the icon → **Hide everything (reset layout)** if you
+want every item hidden straight away.
+
+### Update
+
+Pull the branch and run `make install` again. Your settings, layout and
+permission grants carry over, as long as the signing identity stays the same.
+
+### Share as a disk image
+
+```bash
+make dmg         # → dist/MenuBento.dmg: MenuBento.app plus an Applications link
+```
+
+Open it and drag MenuBento onto Applications. Signed with a self-made
+certificate, so on another Mac the first launch needs right-click → Open.
+
+### Uninstall
+
+1. Right-click the MenuBento icon → **Quit MenuBento**.
+2. Settings → **Hidden items** → turn off **Launch at login** first (or
+   remove it later in System Settings → General → Login Items).
+3. Delete `/Applications/MenuBento.app`.
+4. Optional: `defaults delete com.hawkes.menubento` (settings, groups,
+   presets), and remove MenuBento from System Settings → Privacy & Security
+   → Accessibility and Screen & System Audio Recording (select it, click −).
+
+Your other apps' items stay wherever they were last; ⌘-drag them back if
+you want them elsewhere.
+
+### Developing
+
+```bash
 make run         # debug build → dist/MenuBento.app, then launches it
 make settings    # same, and opens Settings
-make install     # release build copied to /Applications
+make icon        # redraw Resources/AppIcon.icns (Scripts/make-icon.swift)
 make cli         # the menubento-cli debugging tool
 ```
 
-Builds are ad-hoc signed unless you set `SIGN_ID`. macOS ties
-Accessibility and Screen Recording grants to the signature, so with ad-hoc
-signing you have to grant them again after every rebuild. See
-[MORNING.md](MORNING.md) for using a stable signing identity.
+Run one copy at a time: the installed one and a `dist/` one would both add
+items to the menu bar. `make run` and `make install` quit whichever is running.
+
+### Signing
+
+macOS ties Accessibility and Screen Recording grants to the app's code
+signature. With `SIGN_ID` set in the untracked `sign.mk` (the "MenuBento
+Dev" certificate in your login keychain), the grant is stored against that
+certificate, so it survives rebuilds and reinstalls. Without it, builds are
+ad-hoc signed and every build looks like a new app to macOS.
+
+If codesign shows "codesign wants to access key 'MenuBento Dev'", click
+**Always Allow** (enter your login password if asked).
+
+### If macOS keeps asking for a permission
+
+That means the entry in System Settings belongs to a different build (an
+ad-hoc build, or one from another folder), so switching it on doesn't
+apply to the copy that's running. Either:
+
+- In MenuBento: Settings → **Permissions** → **Grant…**. MenuBento clears
+  its own stale entry first, then asks once; switch it on and you're done.
+- Or by hand: System Settings → Privacy & Security → **Accessibility**,
+  select MenuBento, click **−**, then open MenuBento and grant it again. Do
+  the same under **Screen & System Audio Recording** if needed. From
+  Terminal, `tccutil reset Accessibility com.hawkes.menubento` does the
+  same for MenuBento only.
 
 ## Using it
 
@@ -31,7 +95,7 @@ signing you have to grant them again after every rebuild. See
 |---|---|
 | Click the MenuBento icon | Show or hide the Hidden section (or open the MenuBento bar, if you chose that) |
 | ⌥-click it | Show everything, including Always hidden |
-| Right-click (or ⌃-click) it | Menu: groups, presets, add spacer/divider, Settings, Quit |
+| Right-click (or ⌃-click) it | Menu: groups, presets, add spacer/divider, Hide everything (reset layout), Settings, Quit |
 | ⌘-drag any item | Move it yourself. Anything left of `‹` is hidden; anything left of `«` is always hidden |
 | Rest the pointer just left of your visible items | Reveal hidden items (when "Show on hover" is on) |
 
@@ -50,7 +114,8 @@ The settings window has a sidebar:
   line, thick line, dot or three dots, in a custom colour or "Match the
   glow" (the theme's glow colours, moving in step with the glowing edge).
 - **Hidden items**: in place or MenuBento bar, show on hover, auto-rehide
-  delay, pictures in the bar, launch at login.
+  delay, pictures in the bar, and launch at login (with its current status:
+  on, off, or waiting for approval in Login Items).
 - **Appearance**: the themes (Black, Aurora, Sunset, Neon, Ocean, Forest,
   Lavender, Dusk, Custom three-colour), shape (whole bar, island, split),
   fill (Tint, Cells, Glow only), corner radius, travelling glow edge,
@@ -148,6 +213,7 @@ Sources/MenuBento/Appearance/  themes and glow (copied from DuoNotch), the overl
 Sources/MenuBento/Settings/    sidebar window and pages
 Sources/MenuBento/Support/     colours and reorder helpers (copied from DuoNotch), permissions
 Sources/menubento-cli/      debugging tool
+Scripts/make-icon.swift     draws Resources/AppIcon.icns
 ```
 
 Theme colours, the mesh-gradient drift, the glow, drag-to-reorder and the

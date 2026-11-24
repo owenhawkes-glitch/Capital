@@ -7,7 +7,7 @@ public enum Placement: Sendable {
     case leftOf(CGRect)
     case rightOf(CGRect)
 
-    var point: CGPoint {
+    public var point: CGPoint {
         switch self {
         case .leftOf(let f): return CGPoint(x: f.minX + 1, y: f.midY)
         case .rightOf(let f): return CGPoint(x: f.maxX - 1, y: f.midY)

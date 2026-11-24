@@ -1,4 +1,5 @@
 import AppKit
+import OSLog
 import SwiftUI
 import MenuBentoCore
 
@@ -276,6 +277,15 @@ final class AppModel: ObservableObject {
         controls.setBoostersGrabbable(true)
         try? await Task.sleep(for: .milliseconds(700))
 
+        // 0. The icon right of every movable item, just left of the items
+        //    macOS keeps fixed (Control Centre, the clock).
+        let before = await refresh()
+        log("reset: icon \(controls.frame(of: controls.main).map { Int($0.minX) } ?? -1), fixed \(before.filter(\.isFixed).map { "\($0.name)@\(Int($0.frame.minX))" })")
+        if let icon = controls.frame(of: controls.main),
+           before.contains(where: { !$0.isOurs && !$0.isFixed && $0.frame.minX > icon.maxX && $0.frame.width < 400 }),
+           let fixed = before.filter({ $0.isFixed && $0.frame.minX > icon.minX }).min(by: { $0.frame.minX < $1.frame.minX }) {
+            await safeDrag(controls.main, to: .leftOf(fixed.frame))
+        }
         // 1. The Hidden separator immediately left of the icon.
         if let icon = controls.frame(of: controls.main), let sep = controls.frame(of: controls.hiddenSeparator),
            !(sep.maxX <= icon.minX + 1 && icon.minX - sep.maxX < 16) {
@@ -306,11 +316,19 @@ final class AppModel: ObservableObject {
     /// really pick that item up.
     private func safeDrag(_ item: NSStatusItem, to placement: Placement) async {
         guard let from = controls.frame(of: item), let wanted = item.button?.accessibilityLabel() else { return }
-        _ = await Task.detached { () -> Bool in
-            guard ItemMover.label(at: CGPoint(x: from.midX, y: from.midY)) == wanted else { return false }
-            return ItemMover.drag(from: from, to: placement)
+        let result = await Task.detached { () -> String in
+            let found = ItemMover.label(at: CGPoint(x: from.midX, y: from.midY))
+            guard found == wanted else { return "skipped: found \(found ?? "nothing") instead" }
+            return ItemMover.drag(from: from, to: placement) ? "moved" : "drag failed"
         }.value
+        log("drag \(wanted) from \(Int(from.midX)) to \(Int(placement.point.x)): \(result)")
         try? await Task.sleep(for: .milliseconds(450))
+    }
+
+    /// Diagnostics for layout changes, readable with
+    /// `log stream --predicate 'subsystem == "com.hawkes.menubento"'`.
+    func log(_ message: String) {
+        Logger(subsystem: "com.hawkes.menubento", category: "layout").notice("\(message, privacy: .public)")
     }
 
     // MARK: - Groups

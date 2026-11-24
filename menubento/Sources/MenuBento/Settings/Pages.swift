@@ -179,6 +179,7 @@ struct HiddenSettings: View {
     @ObservedObject private var permissions = Permissions.shared
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var launchError: String?
+    @State private var loginStatus = SMAppService.mainApp.status
 
     var body: some View {
         Form {
@@ -231,15 +232,61 @@ struct HiddenSettings: View {
             Section("App") {
                 Toggle("Launch at login", isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, enabled in
+                        let service = SMAppService.mainApp
                         do {
-                            if enabled { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
+                            if enabled, service.status != .enabled { try service.register() }
+                            if !enabled, service.status == .enabled || service.status == .requiresApproval { try service.unregister() }
                             launchError = nil
                         } catch { launchError = error.localizedDescription }
+                        loginStatus = service.status
                     }
+                HStack(spacing: 6) {
+                    Image(systemName: loginStatus.symbol).foregroundStyle(loginStatus.tint)
+                    Text(loginStatus.text).font(.caption).foregroundStyle(.secondary)
+                    if loginStatus == .requiresApproval {
+                        Button("Open Login Items…") { SMAppService.openSystemSettingsLoginItems() }.font(.caption)
+                    }
+                }
+                if !Bundle.main.bundlePath.hasPrefix("/Applications/") {
+                    Text("MenuBento is running from \(Bundle.main.bundlePath). Install it with `make install` so login uses the copy in Applications.")
+                        .font(.caption).foregroundStyle(.orange)
+                }
                 if let launchError { Text(launchError).font(.caption).foregroundStyle(.orange) }
+                Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?")")
+                    .font(.caption).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
+        .onAppear {
+            loginStatus = SMAppService.mainApp.status
+            launchAtLogin = loginStatus == .enabled || loginStatus == .requiresApproval
+        }
+    }
+}
+
+private extension SMAppService.Status {
+    var text: String {
+        switch self {
+        case .enabled: "On: MenuBento opens when you log in."
+        case .requiresApproval: "Waiting for your approval in System Settings → General → Login Items."
+        case .notRegistered: "Off."
+        case .notFound: "Off (macOS can't find this copy of MenuBento; install it in Applications)."
+        @unknown default: "Unknown."
+        }
+    }
+    var symbol: String {
+        switch self {
+        case .enabled: "checkmark.circle.fill"
+        case .requiresApproval: "exclamationmark.circle"
+        default: "circle"
+        }
+    }
+    var tint: Color {
+        switch self {
+        case .enabled: .green
+        case .requiresApproval: .orange
+        default: .secondary
+        }
     }
 }
 

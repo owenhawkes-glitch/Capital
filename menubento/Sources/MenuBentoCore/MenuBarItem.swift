@@ -69,14 +69,19 @@ public enum MenuBarScanner {
                 guard let f = frame(of: el) else { return nil }
                 return (el, f)
             }.sorted { $0.1.minX < $1.1.minX }
-            for (index, (el, f)) in framed.enumerated() {
+            for (index, (group, f)) in framed.enumerated() {
+                // macOS 27 wraps system items in an AXGroup whose single
+                // child is the real AXMenuBarItem with the useful labels.
+                let el = innermost(group)
                 let identifier: String? = attribute(el, "AXIdentifier")
                 let title: String? = attribute(el, kAXTitleAttribute)
-                let desc: String? = attribute(el, kAXDescriptionAttribute)
+                let desc: String? = attribute(el, kAXDescriptionAttribute) ?? attributedDescription(el)
                 let help: String? = attribute(el, kAXHelpAttribute)
                 let label = [identifier, title, desc, help].compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
                     .first { !$0.isEmpty }
                 let key = label.map { String(firstLine($0).prefix(80)) } ?? "#\(index)"
+                // A friendlier name for system items than their identifier.
+                let display = [desc, title].compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }.first { !$0.isEmpty } ?? label
                 var actions: CFArray?
                 AXUIElementCopyActionNames(el, &actions)
                 let canPress = ((actions as? [String]) ?? []).contains(kAXPressAction)
@@ -84,9 +89,11 @@ public enum MenuBarScanner {
                 // The clock is the right-most, widest MenuBarAgent item.
                 let isClock = isSystem && index == framed.count - 1 && f.width > 60
                 let name: String
-                if let label, label != appName, !label.hasPrefix(appName) {
+                if isSystem, let display {
+                    name = firstLine(display)
+                } else if let label = display, label != appName, !label.hasPrefix(appName) {
                     name = "\(appName) – \(firstLine(label))"
-                } else if let label {
+                } else if let label = display {
                     name = firstLine(label)
                 } else if isSystem {
                     name = isClock ? "Clock" : "System item \(index + 1)"
@@ -94,7 +101,8 @@ public enum MenuBarScanner {
                     name = framed.count > 1 ? "\(appName) \(index + 1)" : appName
                 }
                 items.append(MenuBarItem(ref: ItemRef(owner: owner, key: isClock ? "clock" : key), pid: pid, frame: f,
-                                         name: name, appName: appName, isFixed: isClock,
+                                         name: name, appName: appName,
+                                         isFixed: isClock || key == "com.apple.menuextra.controlcenter" || key == "com.apple.menuextra.clock",
                                          isOurs: false, canPress: canPress))
             }
         }
@@ -114,9 +122,25 @@ public enum MenuBarScanner {
         AXUIElementSetMessagingTimeout(axApp, 0.25)
         guard let bar: AXUIElement = attribute(axApp, "AXExtrasMenuBar") else { return nil }
         let children: [AXUIElement] = attribute(bar, kAXChildrenAttribute) ?? []
-        return children.min { a, b in
+        let closest = children.min { a, b in
             abs((frame(of: a)?.midX ?? .infinity) - item.midX) < abs((frame(of: b)?.midX ?? .infinity) - item.midX)
         }
+        return closest.map(innermost)
+    }
+
+    /// A group with exactly one child stands for that child.
+    static func innermost(_ el: AXUIElement) -> AXUIElement {
+        let role: String? = attribute(el, kAXRoleAttribute)
+        guard role == "AXGroup" else { return el }
+        let kids: [AXUIElement] = attribute(el, kAXChildrenAttribute) ?? []
+        return kids.count == 1 ? kids[0] : el
+    }
+
+    static func attributedDescription(_ el: AXUIElement) -> String? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(el, "AXAttributedDescription" as CFString, &value) == .success,
+              let attributed = value as? NSAttributedString else { return nil }
+        return attributed.string
     }
 
     /// The frames of the frontmost app's menus (Apple menu, File, Edit…),

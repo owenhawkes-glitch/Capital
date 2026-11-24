@@ -84,12 +84,14 @@ final class AppModel: ObservableObject {
     }
 
     private func mainClicked(_ event: NSEvent?) {
-        let isRight = event?.type == .rightMouseUp || event?.modifierFlags.contains(.control) == true
+        // The live keyboard state is more reliable than the click's flags.
+        let flags = (event?.modifierFlags ?? []).union(NSEvent.modifierFlags)
+        let isRight = event?.type == .rightMouseUp || flags.contains(.control)
         if isRight {
             controls.popUpMenu(MainMenu.build(model: self))
             return
         }
-        let option = event?.modifierFlags.contains(.option) == true
+        let option = flags.contains(.option)
         if option {
             BentoBar.shared.close()
             setState(state == .showAll ? .hidden : .showAll)

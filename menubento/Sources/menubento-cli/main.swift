@@ -60,6 +60,66 @@ case "movetest":
     }
     app.run()
 
+case "probe":
+    // A throwaway status item that stays for N seconds (default 60).
+    let app = NSApplication.shared
+    app.setActivationPolicy(.accessory)
+    let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+    item.button?.title = args.dropFirst().first ?? "PROBE"
+    let seconds = Double(args.dropFirst(2).first ?? "") ?? 60
+    DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { exit(0) }
+    app.run()
+
+case "click":
+    // click X Y [option|right] – synthesised click (top-left coordinates).
+    let a = Array(args.dropFirst())
+    guard a.count >= 2, let x = Double(a[0]), let y = Double(a[1]) else { print("click X Y [option|right]"); exit(1) }
+    let src = CGEventSource(stateID: .hidSystemState)
+    let p = CGPoint(x: x, y: y)
+    let saved = CGEvent(source: nil)?.location ?? p
+    let right = a.count > 2 && a[2] == "right"
+    let option = a.count > 2 && a[2] == "option"
+    let flags: CGEventFlags = option ? .maskAlternate : []
+    if option {
+        let down = CGEvent(keyboardEventSource: src, virtualKey: 0x3A, keyDown: true)
+        down?.flags = .maskAlternate
+        down?.post(tap: .cghidEventTap)
+        usleep(30_000)
+    }
+    defer {
+        if option { CGEvent(keyboardEventSource: src, virtualKey: 0x3A, keyDown: false)?.post(tap: .cghidEventTap) }
+    }
+    for type in right ? [CGEventType.mouseMoved, .rightMouseDown, .rightMouseUp] : [.mouseMoved, .leftMouseDown, .leftMouseUp] {
+        let e = CGEvent(mouseEventSource: src, mouseType: type, mouseCursorPosition: p, mouseButton: right ? .right : .left)
+        e?.flags = flags
+        e?.post(tap: .cghidEventTap)
+        usleep(40_000)
+    }
+    if !(a.count > 3 && a[3] == "stay") {
+        usleep(80_000)
+        CGEvent(mouseEventSource: src, mouseType: .mouseMoved, mouseCursorPosition: saved, mouseButton: .left)?.post(tap: .cghidEventTap)
+    }
+
+case "drag":
+    // drag X1 Y1 X2 Y2 – a plain (no modifier) slow mouse drag, for testing
+    // drag and drop in MenuBento's Settings window.
+    let a = Array(args.dropFirst()).compactMap(Double.init)
+    guard a.count == 4 else { print("drag X1 Y1 X2 Y2"); exit(1) }
+    let src = CGEventSource(stateID: .hidSystemState)
+    let from = CGPoint(x: a[0], y: a[1]), to = CGPoint(x: a[2], y: a[3])
+    func post(_ t: CGEventType, _ p: CGPoint) {
+        CGEvent(mouseEventSource: src, mouseType: t, mouseCursorPosition: p, mouseButton: .left)?.post(tap: .cghidEventTap)
+    }
+    post(.mouseMoved, from); usleep(100_000)
+    post(.leftMouseDown, from); usleep(300_000)
+    for i in 1...40 {
+        let t = CGFloat(i) / 40
+        post(.leftMouseDragged, CGPoint(x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t))
+        usleep(25_000)
+    }
+    usleep(300_000)
+    post(.leftMouseUp, to)
+
 default:
-    print("usage: menubento-cli list | movetest")
+    print("usage: menubento-cli list | movetest | probe [title] [seconds] | click X Y [option|right]")
 }

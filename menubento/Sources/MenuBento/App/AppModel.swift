@@ -1,0 +1,309 @@
+import AppKit
+import SwiftUI
+import MenuBentoCore
+
+/// Everything MenuBento knows and does.
+@MainActor
+final class AppModel: ObservableObject {
+    static let shared = AppModel()
+
+    private(set) var controls: ControlItems!
+
+    @Published private(set) var state: BarState = .hidden
+    /// Every item in the menu bar, ours included, left to right.
+    @Published private(set) var items: [MenuBarItem] = []
+    /// Set while items are being moved ("Moving Zoom…").
+    @Published private(set) var busy: String?
+    @Published var lastMessage: String?
+
+    // Settings
+    @Published var revealMode: RevealMode { didSet { save(revealMode.rawValue, "model.revealMode") } }
+    @Published var showOnHover: Bool { didSet { save(showOnHover, "model.showOnHover") } }
+    @Published var autoRehide: Bool { didSet { save(autoRehide, "model.autoRehide") } }
+    @Published var rehideDelay: Double { didSet { save(rehideDelay, "model.rehideDelay") } }
+    @Published var barShowsImages: Bool { didSet { save(barShowsImages, "model.barImages") } }
+    @Published var extras: [ExtraItem] { didSet { saveJSON(extras, "model.extras"); controls?.syncExtras(extras) } }
+    @Published var groups: [ItemGroup] { didSet { saveJSON(groups, "model.groups") } }
+    @Published var presets: [LayoutPreset] { didSet { saveJSON(presets, "model.presets") } }
+
+    /// Remembered names, so hidden items that have quit still read well.
+    private var names: [String: String] = [:]
+
+    private init() {
+        let d = UserDefaults.standard
+        revealMode = RevealMode(rawValue: d.string(forKey: "model.revealMode") ?? "") ?? .inPlace
+        showOnHover = d.bool(forKey: "model.showOnHover")
+        autoRehide = d.object(forKey: "model.autoRehide") as? Bool ?? true
+        rehideDelay = d.object(forKey: "model.rehideDelay") as? Double ?? 3
+        barShowsImages = d.object(forKey: "model.barImages") as? Bool ?? true
+        extras = Self.loadJSON("model.extras") ?? []
+        groups = Self.loadJSON("model.groups") ?? []
+        presets = Self.loadJSON("model.presets") ?? []
+    }
+
+    func start() {
+        controls = ControlItems()
+        controls.onMainClick = { [weak self] event in self?.mainClicked(event) }
+        controls.onSeparatorClick = { [weak self] in self?.toggle() }
+        controls.syncExtras(extras)
+        // Start hidden only once the menu bar has placed our items.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+            self?.setState(.hidden)
+            Task { await self?.refresh() }
+        }
+        Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in
+            Task { @MainActor in
+                let model = AppModel.shared
+                if model.busy == nil && SettingsWindow.shared.isVisible { await model.refresh() }
+            }
+        }
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didLaunchApplicationNotification, object: nil, queue: .main) { _ in
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(2))
+                await AppModel.shared.refresh()
+            }
+        }
+    }
+
+    // MARK: - Showing and hiding
+
+    func setState(_ new: BarState) {
+        state = new
+        controls.apply(new)
+        HoverWatcher.shared.stateChanged()
+        if new != .hidden {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                Task { await AppModel.shared.captureImagesIfAllowed() }
+            }
+        }
+        BarOverlay.shared.setNeedsUpdate()
+    }
+
+    func toggle() {
+        setState(state == .hidden ? .shown : .hidden)
+    }
+
+    private func mainClicked(_ event: NSEvent?) {
+        let isRight = event?.type == .rightMouseUp || event?.modifierFlags.contains(.control) == true
+        if isRight {
+            controls.popUpMenu(MainMenu.build(model: self))
+            return
+        }
+        let option = event?.modifierFlags.contains(.option) == true
+        if option {
+            BentoBar.shared.close()
+            setState(state == .showAll ? .hidden : .showAll)
+        } else if revealMode == .bar {
+            BentoBar.shared.toggle()
+        } else {
+            toggle()
+        }
+    }
+
+    // MARK: - Reading the menu bar
+
+    @discardableResult
+    func refresh() async -> [MenuBarItem] {
+        guard let controls else { return [] }
+        let pid = getpid()
+        let scanned = await Task.detached { MenuBarScanner.scan(skipping: pid) }.value
+        let ours = controls.ourItems(extrasConfig: extras)
+        let all = (scanned + ours).sorted { $0.frame.minX < $1.frame.minX }
+        for item in all { names[item.ref.id] = item.name }
+        items = all
+        BarOverlay.shared.setNeedsUpdate()
+        return all
+    }
+
+    private func frame(_ ref: ItemRef, in list: [MenuBarItem]? = nil) -> CGRect? {
+        (list ?? items).first { $0.ref == ref }?.frame
+    }
+
+    func section(of item: MenuBarItem, in list: [MenuBarItem]? = nil) -> MenuSection {
+        guard let h = frame(OurItems.hidden, in: list), let ah = frame(OurItems.alwaysHidden, in: list) else { return .visible }
+        if item.ref == OurItems.hidden || item.ref == OurItems.main { return .visible }
+        if item.ref == OurItems.alwaysHidden { return .hidden }
+        if item.midX >= h.maxX - 1 { return .visible }
+        if item.midX >= ah.maxX - 1 { return .hidden }
+        return .alwaysHidden
+    }
+
+    /// Items in a section, left to right, without the separators.
+    func items(in section: MenuSection) -> [MenuBarItem] {
+        items.filter { $0.ref != OurItems.hidden && $0.ref != OurItems.alwaysHidden && self.section(of: $0) == section }
+    }
+
+    var order: [ItemRef] { items.map(\.ref) }
+
+    func name(for ref: ItemRef) -> String { names[ref.id] ?? ref.key }
+
+    // MARK: - Moving
+
+    /// Moves `refs` into a section (at its right-hand end for Hidden and
+    /// Always hidden, at its left-hand end for Visible).
+    func move(_ refs: [ItemRef], to section: MenuSection) async {
+        var target = order.filter { !refs.contains($0) }
+        let insertAt: Int
+        switch section {
+        case .alwaysHidden: insertAt = target.firstIndex(of: OurItems.alwaysHidden) ?? 0
+        case .hidden: insertAt = target.firstIndex(of: OurItems.hidden) ?? 0
+        case .visible: insertAt = (target.firstIndex(of: OurItems.hidden) ?? -1) + 1
+        }
+        target.insert(contentsOf: refs, at: insertAt)
+        await arrange(to: target, label: refs.count == 1 ? "Moving \(name(for: refs[0]))…" : "Moving \(refs.count) items…")
+    }
+
+    /// Rearranges the menu bar to match `target` (left to right) with as
+    /// few Cmd-drags as possible. Items not in `target` stay where they
+    /// are; items in `target` that aren't running are skipped.
+    @discardableResult
+    func arrange(to target: [ItemRef], label: String) async -> Bool {
+        guard busy == nil else { return false }
+        guard AXIsProcessTrusted() else {
+            lastMessage = "Moving items needs Accessibility permission (Settings → Permissions)."
+            return false
+        }
+        busy = label
+        BentoBar.shared.close()
+        let previous = state
+        setState(.showAll)
+        try? await Task.sleep(for: .milliseconds(500))
+        var current = await refresh()
+
+        let present = Set(current.map(\.ref))
+        let wanted = target.filter { present.contains($0) }
+        let wantedSet = Set(wanted)
+        var moves = 0, failures: [String] = []
+
+        if wanted.count >= 2 {
+            for i in stride(from: wanted.count - 2, through: 0, by: -1) {
+                let ref = wanted[i], anchor = wanted[i + 1]
+                if isDirectlyLeft(ref, of: anchor, in: current, among: wantedSet) { continue }
+                guard let source = current.first(where: { $0.ref == ref }), !source.isFixed,
+                      let target = current.first(where: { $0.ref == anchor }) else { continue }
+                busy = "Moving \(source.name)…"
+                for attempt in 0..<3 {
+                    let nudge: CGFloat = [0, -4, 4][attempt]
+                    let from = source.frame, to = target.frame
+                    let fresh = current.first(where: { $0.ref == ref })?.frame ?? from
+                    let anchorFrame = current.first(where: { $0.ref == anchor })?.frame ?? to
+                    await Task.detached { ItemMover.drag(from: fresh, to: .leftOf(anchorFrame), nudge: nudge) }.value
+                    moves += 1
+                    try? await Task.sleep(for: .milliseconds(250))
+                    current = await refresh()
+                    if isDirectlyLeft(ref, of: anchor, in: current, among: wantedSet) { break }
+                    if attempt == 2 { failures.append(source.name) }
+                }
+            }
+        }
+
+        setState(previous)
+        try? await Task.sleep(for: .milliseconds(400))
+        await refresh()
+        busy = nil
+        lastMessage = failures.isEmpty
+            ? (moves == 0 ? "Already in place." : "Done.")
+            : "Couldn't move: \(failures.joined(separator: ", ")). macOS may not allow these to move."
+        return failures.isEmpty
+    }
+
+    private func isDirectlyLeft(_ ref: ItemRef, of anchor: ItemRef, in list: [MenuBarItem], among set: Set<ItemRef>) -> Bool {
+        let filtered = list.map(\.ref).filter { set.contains($0) }
+        guard let i = filtered.firstIndex(of: ref), i + 1 < filtered.count else { return false }
+        return filtered[i + 1] == anchor
+    }
+
+    // MARK: - Groups
+
+    func setGroup(_ id: UUID, hidden: Bool) async {
+        guard let index = groups.firstIndex(where: { $0.id == id }) else { return }
+        await refresh()
+        var group = groups[index]
+        let present = group.members.filter { ref in items.contains { $0.ref == ref } }
+        if hidden {
+            for ref in present {
+                if let item = items.first(where: { $0.ref == ref }) { group.savedSections[ref.id] = section(of: item) }
+            }
+            group.isHidden = true
+            groups[index] = group
+            await move(present, to: .alwaysHidden)
+        } else {
+            group.isHidden = false
+            groups[index] = group
+            let toHidden = present.filter { group.savedSections[$0.id] == .hidden }
+            let toVisible = present.filter { (group.savedSections[$0.id] ?? .visible) == .visible }
+            if !toHidden.isEmpty { await move(toHidden, to: .hidden) }
+            if !toVisible.isEmpty { await move(toVisible, to: .visible) }
+        }
+    }
+
+    // MARK: - Spacers and dividers
+
+    func addExtra(_ kind: ExtraItem.Kind) {
+        let extra = ExtraItem(kind: kind)
+        extras.append(extra)
+        // New status items appear at the far left (in Always hidden). Bring
+        // it to the start of the Visible section so it can be seen.
+        Task {
+            try? await Task.sleep(for: .milliseconds(500))
+            await refresh()
+            if AXIsProcessTrusted() { await move([extra.ref], to: .visible) }
+        }
+    }
+
+    // MARK: - Presets
+
+    func savePreset(named name: String, includeLook: Bool) async {
+        await refresh()
+        presets.append(currentLayout(named: name, includeLook: includeLook))
+    }
+
+    func overwritePreset(_ id: UUID) async {
+        await refresh()
+        guard let i = presets.firstIndex(where: { $0.id == id }) else { return }
+        let old = presets[i]
+        var fresh = currentLayout(named: old.name, includeLook: old.appearance != nil)
+        fresh.id = old.id
+        presets[i] = fresh
+    }
+
+    private func currentLayout(named name: String, includeLook: Bool) -> LayoutPreset {
+        LayoutPreset(name: name,
+                     entries: items.filter { !$0.isFixed }.map { PresetEntry(ref: $0.ref, name: $0.name) },
+                     extras: extras,
+                     appearance: includeLook ? BarAppearance.shared.snapshot : nil)
+    }
+
+    func applyPreset(_ id: UUID) async {
+        guard let preset = presets.first(where: { $0.id == id }) else { return }
+        if let look = preset.appearance { BarAppearance.shared.snapshot = look }
+        if extras != preset.extras {
+            extras = preset.extras
+            try? await Task.sleep(for: .milliseconds(500))
+        }
+        for entry in preset.entries { names[entry.ref.id] = names[entry.ref.id] ?? entry.name }
+        await arrange(to: preset.entries.map(\.ref), label: "Applying “\(preset.name)”…")
+    }
+
+    // MARK: - Item pictures
+
+    func captureImagesIfAllowed() async {
+        guard barShowsImages, Permissions.shared.screenRecording, state != .hidden else { return }
+        let list = await refresh()
+        // Everything that's drawn right now; the cache skips off-screen items.
+        await ItemImageCache.shared.capture(list.filter { !$0.isOurs })
+    }
+
+    // MARK: - Persistence
+
+    private func save(_ value: Any, _ key: String) { UserDefaults.standard.set(value, forKey: key) }
+
+    private func saveJSON<T: Encodable>(_ value: T, _ key: String) {
+        if let data = try? JSONEncoder().encode(value) { UserDefaults.standard.set(data, forKey: key) }
+    }
+
+    private static func loadJSON<T: Decodable>(_ key: String) -> T? {
+        guard let data = UserDefaults.standard.data(forKey: key) else { return nil }
+        return try? JSONDecoder().decode(T.self, from: data)
+    }
+}

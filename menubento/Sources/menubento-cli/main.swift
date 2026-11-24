@@ -98,6 +98,17 @@ case "plantest":
     }
     exit(ok ? 0 : 1)
 
+case "cmddrag":
+    // cmddrag SOURCE-KEY TARGET-KEY – ⌘-drag the item whose ref id contains
+    // SOURCE-KEY just left of the one containing TARGET-KEY.
+    let a = Array(args.dropFirst())
+    guard a.count == 2 else { print("cmddrag SOURCE TARGET"); exit(1) }
+    let items = MenuBarScanner.scan()
+    guard let s = items.first(where: { $0.ref.id.contains(a[0]) }), let t = items.first(where: { $0.ref.id.contains(a[1]) }) else {
+        print("not found"); exit(1)
+    }
+    ItemMover.drag(from: s.frame, to: .leftOf(t.frame))
+
 case "probe":
     // A throwaway status item that stays for N seconds (default 60).
     let app = NSApplication.shared

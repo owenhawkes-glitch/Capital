@@ -23,7 +23,7 @@ final class BentoBar {
             await model.refresh()
             // No pictures yet? Take them while briefly revealing the items.
             if model.barShowsImages, Permissions.shared.screenRecording, model.state == .hidden,
-               model.items(in: .hidden).contains(where: { ItemImageCache.shared.image(for: $0.ref) == nil }) {
+               model.barItems(in: .hidden).contains(where: { ItemImageCache.shared.image(for: $0.ref) == nil }) {
                 model.setState(.showAll)
                 try? await Task.sleep(for: .milliseconds(450))
                 await model.captureImagesIfAllowed()
@@ -113,14 +113,14 @@ struct BentoBarView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            row(model.items(in: .hidden), empty: "Nothing hidden yet. Drag items into Hidden in Settings, or ⌘-drag them left of the ‹ separator.")
+            row(model.barItems(in: .hidden), empty: "Nothing hidden yet. Drag items into Hidden in Settings, or ⌘-drag them left of the ‹ separator.")
             if showAlways {
                 Divider().opacity(0.4)
-                row(model.items(in: .alwaysHidden), empty: "Nothing always hidden.")
+                row(model.barItems(in: .alwaysHidden), empty: "Nothing always hidden.")
             }
             HStack(spacing: 10) {
-                if !model.items(in: .alwaysHidden).isEmpty {
-                    Button(showAlways ? "Less" : "Always hidden (\(model.items(in: .alwaysHidden).count))") { showAlways.toggle() }
+                if !model.barItems(in: .alwaysHidden).isEmpty {
+                    Button(showAlways ? "Less" : "Always hidden (\(model.barItems(in: .alwaysHidden).count))") { showAlways.toggle() }
                 }
                 if !Permissions.shared.accessibility {
                     Text("Grant Accessibility to list items").foregroundStyle(.orange)

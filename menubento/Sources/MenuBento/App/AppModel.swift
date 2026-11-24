@@ -135,6 +135,11 @@ final class AppModel: ObservableObject {
         items.filter { $0.ref != OurItems.hidden && $0.ref != OurItems.alwaysHidden && self.section(of: $0) == section }
     }
 
+    /// What the MenuBento bar lists: other apps' items only.
+    func barItems(in section: MenuSection) -> [MenuBarItem] {
+        items(in: section).filter { !$0.isOurs }
+    }
+
     var order: [ItemRef] { items.map(\.ref) }
 
     func name(for ref: ItemRef) -> String { names[ref.id] ?? ref.key }

@@ -98,13 +98,24 @@ case "plantest":
     }
     exit(ok ? 0 : 1)
 
+case "move":
+    // move X Y – moves the pointer (top-left coordinates).
+    let a = Array(args.dropFirst()).compactMap(Double.init)
+    guard a.count == 2 else { print("move X Y"); exit(1) }
+    let point = CGPoint(x: a[0], y: a[1])
+    CGWarpMouseCursorPosition(point)
+    CGEvent(mouseEventSource: CGEventSource(stateID: .hidSystemState), mouseType: .mouseMoved,
+            mouseCursorPosition: point, mouseButton: .left)?.post(tap: .cghidEventTap)
+    usleep(100_000)
+
 case "cmddrag":
     // cmddrag SOURCE-KEY TARGET-KEY – ⌘-drag the item whose ref id contains
     // SOURCE-KEY just left of the one containing TARGET-KEY.
     let a = Array(args.dropFirst())
     guard a.count == 2 else { print("cmddrag SOURCE TARGET"); exit(1) }
     let items = MenuBarScanner.scan()
-    guard let s = items.first(where: { $0.ref.id.contains(a[0]) }), let t = items.first(where: { $0.ref.id.contains(a[1]) }) else {
+    func find(_ key: String) -> MenuBarItem? { items.first { $0.ref.id == key } ?? items.first { $0.ref.id.contains(key) } }
+    guard let s = find(a[0]), let t = find(a[1]) else {
         print("not found"); exit(1)
     }
     ItemMover.drag(from: s.frame, to: .leftOf(t.frame))

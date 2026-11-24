@@ -49,6 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         let state = AppState.shared
         state.start()
+        for account in state.accounts { HookInstaller.repairIfMoved(configDir: account.configDir) }
         notch = NotchController(state: state)
         notch?.show()
         if ProcessInfo.processInfo.environment["DUONOTCH_SETTINGS"] == "1" {

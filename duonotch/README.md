@@ -39,7 +39,8 @@ make demo       # same, but with fake accounts, sessions and a pending approval
 ```
 
 ```bash
-make install    # release build copied to /Applications
+make install    # release build copied to /Applications and opened (hooks follow it)
+make dmg        # dist/DuoNotch.dmg – drag-to-Applications installer for another Mac
 ```
 
 Open the package in Xcode with `open Package.swift` if you prefer.

@@ -62,6 +62,24 @@ enum HookInstaller {
         try writeSettings(root, configDir: configDir)
     }
 
+    /// When the installed copy in /Applications launches and a login's hooks
+    /// still point at another copy (e.g. the build folder), repoint them here.
+    static func repairIfMoved(configDir: String) {
+        guard let binary = hookBinaryURL,
+              Bundle.main.bundleURL.path.hasPrefix("/Applications/"),
+              isInstalled(configDir: configDir),
+              let root = try? readSettings(configDir: configDir),
+              let hooks = root["hooks"] as? [String: Any] else { return }
+        let command = "\"\(binary.path)\""
+        let stale = events.contains { event in
+            let groups = (hooks[event] as? [[String: Any]] ?? []).filter(isOurs)
+            return groups.contains { group in
+                (group["hooks"] as? [[String: Any]] ?? []).contains { ($0["command"] as? String) != command }
+            }
+        }
+        if stale { try? install(configDir: configDir) }
+    }
+
     static func uninstall(configDir: String) throws {
         guard var root = try readSettings(configDir: configDir),
               var hooks = root["hooks"] as? [String: Any] else { return }

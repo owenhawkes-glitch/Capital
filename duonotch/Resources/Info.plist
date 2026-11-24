@@ -2,42 +2,50 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleDevelopmentRegion</key>
-    <string>en</string>
-    <key>CFBundleExecutable</key>
-    <string>DuoNotch</string>
-    <key>CFBundleIdentifier</key>
-    <string>com.hawkes.duonotch</string>
-    <key>CFBundleInfoDictionaryVersion</key>
-    <string>6.0</string>
-    <key>CFBundleName</key>
-    <string>DuoNotch</string>
-    <key>CFBundleDisplayName</key>
-    <string>DuoNotch</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>CFBundleShortVersionString</key>
-    <string>0.1.0</string>
-    <key>CFBundleVersion</key>
-    <string>1</string>
-    <key>LSMinimumSystemVersion</key>
-    <string>14.0</string>
-    <key>LSUIElement</key>
-    <true/>
-    <key>NSAppleEventsUsageDescription</key>
-    <string>DuoNotch brings the terminal tab of a Claude Code session to the front when you click it in the notch.</string>
-    <key>UTExportedTypeDeclarations</key>
-    <array>
-        <dict>
-            <key>UTTypeIdentifier</key>
-            <string>com.hawkes.duonotch.reorder</string>
-            <key>UTTypeDescription</key>
-            <string>DuoNotch item being reordered</string>
-            <key>UTTypeConformsTo</key>
-            <array><string>public.data</string></array>
-        </dict>
-    </array>
-    <key>NSHumanReadableCopyright</key>
-    <string>MIT</string>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>DuoNotch</string>
+	<key>CFBundleExecutable</key>
+	<string>DuoNotch</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundleIconName</key>
+	<string>AppIcon</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.hawkes.duonotch</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>DuoNotch</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.productivity</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>DuoNotch brings the terminal tab of a Claude Code session to the front when you click it in the notch.</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>MIT</string>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>DuoNotch item being reordered</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.hawkes.duonotch.reorder</string>
+		</dict>
+	</array>
 </dict>
 </plist>

@@ -322,7 +322,7 @@ struct PermissionsSettings: View {
                     .font(.callout)
             }
             Section {
-                Text("If a grant doesn't seem to stick after rebuilding MenuBento, remove MenuBento from the list in System Settings and add it again: macOS ties permissions to the app's signature. See MORNING.md for a stable signing identity.")
+                Text("Already switched on but MenuBento still asks? The switch belongs to an earlier build: macOS ties each approval to the app's exact signature. Click Grant… here; MenuBento clears its own old entry first, so the next approval sticks.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }

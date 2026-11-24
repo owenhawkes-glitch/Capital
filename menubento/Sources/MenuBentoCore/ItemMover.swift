@@ -66,7 +66,7 @@ public enum ItemMover {
 
     /// Clicks at a point (used for items that don't support AXPress).
     public static func click(at p: CGPoint) {
-        guard let src = CGEventSource(stateID: .hidSystemState) else { return }
+        guard AXIsProcessTrusted(), let src = CGEventSource(stateID: .hidSystemState) else { return }
         let saved = CGEvent(source: nil)?.location ?? p
         for type in [CGEventType.mouseMoved, .leftMouseDown, .leftMouseUp] {
             CGEvent(mouseEventSource: src, mouseType: type, mouseCursorPosition: p, mouseButton: .left)?.post(tap: .cghidEventTap)

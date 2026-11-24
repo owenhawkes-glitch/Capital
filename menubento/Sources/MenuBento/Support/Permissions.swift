@@ -28,14 +28,37 @@ final class Permissions: ObservableObject {
         if sr != screenRecording { screenRecording = sr }
     }
 
+    /// Asks macOS for Accessibility.
+    ///
+    /// If MenuBento isn't trusted, any entry already in the list is stale:
+    /// it was approved for an earlier build, and macOS pins approvals to
+    /// the exact signature. Turning that switch on again changes nothing,
+    /// so macOS keeps asking. We clear MenuBento's own entry first (never
+    /// another app's), so the approval you give now matches this build.
     func requestAccessibility() {
+        guard !AXIsProcessTrusted() else { check(); return }
+        resetOwnEntry("Accessibility")
         let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
         _ = AXIsProcessTrustedWithOptions(options)
-        open("Privacy_Accessibility")
     }
 
     func requestScreenRecording() {
+        guard !CGPreflightScreenCaptureAccess() else { check(); return }
+        resetOwnEntry("ScreenCapture")
         if !CGRequestScreenCaptureAccess() { open("Privacy_ScreenCapture") }
+    }
+
+    /// `tccutil reset SERVICE com.hawkes.menubento`: removes only
+    /// MenuBento's entry for that one permission.
+    private func resetOwnEntry(_ service: String) {
+        guard let id = Bundle.main.bundleIdentifier else { return }
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/tccutil")
+        task.arguments = ["reset", service, id]
+        task.standardOutput = FileHandle.nullDevice
+        task.standardError = FileHandle.nullDevice
+        try? task.run()
+        task.waitUntilExit()
     }
 
     func open(_ pane: String) {

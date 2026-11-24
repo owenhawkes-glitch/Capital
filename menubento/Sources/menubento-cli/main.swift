@@ -60,12 +60,52 @@ case "movetest":
     }
     app.run()
 
+case "plantest":
+    // Checks ArrangePlanner on small orders (no menu bar involved).
+    func refs(_ s: String) -> [ItemRef] { s.map { ItemRef(owner: "t", key: String($0)) } }
+    func simulate(_ cur: String, _ tgt: String, pinned: String = "") -> (String, Int) {
+        var current = refs(cur)
+        let target = refs(tgt)
+        var settled = ArrangePlanner.stable(current: current, target: target, pinned: Set(refs(pinned)))
+        var moves = 0
+        for ref in target.reversed() where !settled.contains(ref) {
+            guard let anchor = ArrangePlanner.anchor(for: ref, target: target, settled: settled) else { continue }
+            current.removeAll { $0 == ref }
+            switch anchor {
+            case .leftOf(let o): current.insert(ref, at: current.firstIndex(of: o)!)
+            case .rightOf(let o): current.insert(ref, at: current.firstIndex(of: o)! + 1)
+            }
+            precondition(ArrangePlanner.isPlaced(ref, current: current, target: target, settled: settled))
+            settled.insert(ref)
+            moves += 1
+        }
+        return (current.map(\.key).joined(), moves)
+    }
+    let cases: [(String, String, String, Int)] = [
+        ("ABCDE", "ABCDE", "", 0),
+        ("dAhBAx", "", "", 0),
+        ("aHBAgm", "aAHBgm", "", 1),     // the group bug: only A should move
+        ("EDCBA", "ABCDE", "", 4),
+        ("ABCDK", "BACDK", "K", 1),
+        ("XABCK", "ABCXK", "K", 1),
+    ]
+    var ok = true
+    for (cur, tgt, pin, expected) in cases where !tgt.isEmpty {
+        let (result, moves) = simulate(cur, tgt, pinned: pin)
+        let pass = result == tgt && moves == expected
+        ok = ok && pass
+        print(pass ? "PASS" : "FAIL", cur, "→", tgt, "got", result, "in", moves, "moves (expected \(expected))")
+    }
+    exit(ok ? 0 : 1)
+
 case "probe":
     // A throwaway status item that stays for N seconds (default 60).
     let app = NSApplication.shared
     app.setActivationPolicy(.accessory)
     let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     item.button?.title = args.dropFirst().first ?? "PROBE"
+    // Separate autosave names, or two probes share one saved position.
+    item.autosaveName = "probe." + (item.button?.title ?? "")
     let seconds = Double(args.dropFirst(2).first ?? "") ?? 60
     DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { exit(0) }
     app.run()

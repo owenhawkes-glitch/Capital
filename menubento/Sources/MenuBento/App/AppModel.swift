@@ -174,29 +174,35 @@ final class AppModel: ObservableObject {
 
         let present = Set(current.map(\.ref))
         let wanted = target.filter { present.contains($0) }
-        let wantedSet = Set(wanted)
+        let pinned = Set(current.filter(\.isFixed).map(\.ref))
+        var settled = ArrangePlanner.stable(current: current.map(\.ref), target: wanted, pinned: pinned)
         var moves = 0, failures: [String] = []
 
-        if wanted.count >= 2 {
-            for i in stride(from: wanted.count - 2, through: 0, by: -1) {
-                let ref = wanted[i], anchor = wanted[i + 1]
-                if isDirectlyLeft(ref, of: anchor, in: current, among: wantedSet) { continue }
-                guard let source = current.first(where: { $0.ref == ref }), !source.isFixed,
-                      let target = current.first(where: { $0.ref == anchor }) else { continue }
-                busy = "Moving \(source.name)…"
-                for attempt in 0..<3 {
-                    let nudge: CGFloat = [0, -4, 4][attempt]
-                    let from = source.frame, to = target.frame
-                    let fresh = current.first(where: { $0.ref == ref })?.frame ?? from
-                    let anchorFrame = current.first(where: { $0.ref == anchor })?.frame ?? to
-                    await Task.detached { ItemMover.drag(from: fresh, to: .leftOf(anchorFrame), nudge: nudge) }.value
-                    moves += 1
-                    try? await Task.sleep(for: .milliseconds(250))
-                    current = await refresh()
-                    if isDirectlyLeft(ref, of: anchor, in: current, among: wantedSet) { break }
-                    if attempt == 2 { failures.append(source.name) }
+        // Right to left, so each item's right-hand neighbour is settled.
+        for ref in wanted.reversed() where !settled.contains(ref) {
+            guard let source = current.first(where: { $0.ref == ref }), !source.isFixed,
+                  let anchor = ArrangePlanner.anchor(for: ref, target: wanted, settled: settled) else { continue }
+            busy = "Moving \(source.name)…"
+            var placed = false
+            for attempt in 0..<3 {
+                let nudge: CGFloat = [0, -4, 4][attempt]
+                func frameOf(_ r: ItemRef) -> CGRect? { current.first { $0.ref == r }?.frame }
+                let placement: Placement?
+                switch anchor {
+                case .leftOf(let other): placement = frameOf(other).map { .leftOf($0) }
+                case .rightOf(let other): placement = frameOf(other).map { .rightOf($0) }
+                }
+                guard let from = frameOf(ref), let placement else { break }
+                await Task.detached { ItemMover.drag(from: from, to: placement, nudge: nudge) }.value
+                moves += 1
+                try? await Task.sleep(for: .milliseconds(250))
+                current = await refresh()
+                if ArrangePlanner.isPlaced(ref, current: current.map(\.ref), target: wanted, settled: settled) {
+                    placed = true
+                    break
                 }
             }
+            if placed { settled.insert(ref) } else { failures.append(source.name) }
         }
 
         setState(previous)
@@ -207,12 +213,6 @@ final class AppModel: ObservableObject {
             ? (moves == 0 ? "Already in place." : "Done.")
             : "Couldn't move: \(failures.joined(separator: ", ")). macOS may not allow these to move."
         return failures.isEmpty
-    }
-
-    private func isDirectlyLeft(_ ref: ItemRef, of anchor: ItemRef, in list: [MenuBarItem], among set: Set<ItemRef>) -> Bool {
-        let filtered = list.map(\.ref).filter { set.contains($0) }
-        guard let i = filtered.firstIndex(of: ref), i + 1 < filtered.count else { return false }
-        return filtered[i + 1] == anchor
     }
 
     // MARK: - Groups

@@ -40,15 +40,18 @@ final class MediaStore: ObservableObject {
     @Published private(set) var track: Track?
     @Published private(set) var artwork: NSImage?
     @Published private(set) var lastError: String?
-    /// 0…100, nil until read from the player.
+    /// The Mac's output volume, 0…100 (nil if the output device has no
+    /// software volume). Kept in sync with the volume keys.
     @Published private(set) var volume: Double?
-    private var volumeInFlight = false
-    private var pendingVolume: Double?
 
     private var artworkFor: URL?
     private var observers: [NSObjectProtocol] = []
 
     private init() {
+        volume = SystemVolume.shared.volume
+        SystemVolume.shared.onChange = { value in
+            MainActor.assumeIsolated { MediaStore.shared.volume = value }
+        }
         let center = DistributedNotificationCenter.default()
         observers.append(center.addObserver(forName: Notification.Name("com.spotify.client.PlaybackStateChanged"), object: nil, queue: .main) { note in
             let info = note.userInfo ?? [:]
@@ -119,7 +122,6 @@ final class MediaStore: ObservableObject {
                 duration: number(5),
                 position: number(6) ?? 0,
                 positionDate: Date()))
-            if let v = number(7) { MediaStore.shared.volume = v }
         }
     }
 
@@ -157,23 +159,22 @@ final class MediaStore: ObservableObject {
         run("tell application \"\(source.appName)\" to set player position to \(Int(seconds))") { _ in }
     }
 
-    /// Sets the player's volume (0…100). Coalesces fast slider drags so only
-    /// one AppleScript call is in flight at a time.
+    /// Sets the Mac's output volume (0…100), same as the volume keys.
     func setVolume(_ value: Double) {
         let v = min(max(value, 0), 100)
         volume = v
-        pendingVolume = v
-        sendVolumeIfIdle()
+        SystemVolume.shared.setVolume(v)
+        restorePlayerVolumeOnce()
     }
 
-    private func sendVolumeIfIdle() {
-        guard !volumeInFlight, let v = pendingVolume, let source = activeSource else { return }
-        pendingVolume = nil
-        volumeInFlight = true
-        run("tell application \"\(source.appName)\" to set sound volume to \(Int(v.rounded()))") { _ in
-            MediaStore.shared.volumeInFlight = false
-            MediaStore.shared.sendVolumeIfIdle()
-        }
+    /// Older versions moved the player's own volume, which capped how loud
+    /// the Mac volume could get. Put it back to full, once per player.
+    private func restorePlayerVolumeOnce() {
+        guard let source = activeSource else { return }
+        let key = "media.playerVolumeRestored.\(source.rawValue)"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        UserDefaults.standard.set(true, forKey: key)
+        run("tell application \"\(source.appName)\" to set sound volume to 100") { _ in }
     }
 
     /// Reads position, play state and volume without touching the rest.
@@ -188,7 +189,6 @@ final class MediaStore: ObservableObject {
                 t.positionDate = Date()
             }
             if parts.count > 1 { t.isPlaying = parts[1] == "playing" }
-            if parts.count > 2, let v = Double(parts[2]) { MediaStore.shared.volume = v }
             MediaStore.shared.track = t
         }
     }

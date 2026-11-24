@@ -77,11 +77,13 @@ menu bar works differently from the systems Ice and Hidden Bar were built for:
    than about half the screen width (2546 pt on a 5120 pt display) is simply
    dropped, so the items it was meant to push away stay put. This is
    why Hidden Bar's separator (5002 pt) hides nothing here.
-3. **Items pushed left of roughly the screen's centre aren't drawn.** So
-   MenuBento grows its separator to just under half the screen width, which
-   pushes everything to its left past the middle. After hiding, it checks
-   that the always-hidden separator really moved past the centre, and tries
-   shorter lengths if macOS refused the first one.
+3. **One separator can't push far enough.** At just under half the screen
+   width, a separator only pushes hidden items to the middle of the bar,
+   where they stay visible (or sit under a notch). So each separator has an
+   invisible "booster" item immediately to its left. Together they're as
+   long as the distance to the screen's left edge, split into two pieces
+   that are each under the limit. MenuBento ⌘-drags the boosters back into
+   place by themselves if you move the separators (needs Accessibility).
 
 Moving items synthesises exactly what you would do: hold ⌘ and drag. The
 pointer is put back afterwards. To rearrange, MenuBento keeps the longest
@@ -154,9 +156,8 @@ no code at build time.
 
 ## Known limits
 
-- **Overflow.** Everything that should be visible has to fit in the right
-  half of the menu bar. macOS 27 doesn't draw items left of the centre in
-  any case.
+- **Without Accessibility** the boosters can't be put in place, so hiding
+  only pushes items towards the middle of the bar.
 - **Item identity.** An app with several unlabeled items is told apart by
   position ("#0", "#1"), so after such an app reorders its own items a
   group or preset may pick the wrong one.

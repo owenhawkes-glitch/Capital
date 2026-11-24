@@ -9,26 +9,31 @@ import MenuBentoCore
 /// section; everything left of the second one is Always hidden.
 ///
 /// Hiding works by making a separator very long so the items to its left
-/// are pushed away. On macOS 27 two things are different from older
-/// systems (found by experiment, see README):
-///  * an item longer than about half the screen is simply dropped, so the
-///    old 10 000 pt trick shows everything instead of hiding it;
-///  * items pushed left of roughly the screen's centre aren't drawn.
-/// So the separator grows to just under half the screen width, and we
-/// check that it really pushed things before trusting it.
+/// are pushed off the left edge of the screen. On macOS 27 an item longer
+/// than about half the screen is simply dropped (so the old 10 000 pt
+/// trick shows everything instead of hiding it). One separator therefore
+/// can't push far enough on its own: items end up near the middle of the
+/// bar, under a notch or in plain view. Each separator has a "booster", an
+/// invisible item that sits immediately to its left. Together they're as
+/// long as the distance to the screen's left edge, split into two pieces
+/// that are each under the limit.
 @MainActor
 final class ControlItems {
     let main: NSStatusItem
     let hiddenSeparator: NSStatusItem
     let alwaysSeparator: NSStatusItem
+    /// Invisible items that must sit immediately left of each separator.
+    let hiddenBooster: NSStatusItem
+    let alwaysBooster: NSStatusItem
     private(set) var extras: [UUID: NSStatusItem] = [:]
 
     var onMainClick: ((NSEvent?) -> Void)?
     var onSeparatorClick: (() -> Void)?
 
-    /// The longest separator the menu bar accepted, learned at run time.
-    private var expandLength: CGFloat?
     private static let collapsedLength: CGFloat = 14
+    /// A booster at rest: present but invisible.
+    private static let boosterRest: CGFloat = 1
+    private var lastState: BarState = .showAll
 
     init() {
         // Creation order sets the default order (each new item goes to the
@@ -39,10 +44,14 @@ final class ControlItems {
         hiddenSeparator.autosaveName = "menubento.hidden"
         alwaysSeparator = NSStatusBar.system.statusItem(withLength: Self.collapsedLength)
         alwaysSeparator.autosaveName = "menubento.alwaysHidden"
+        hiddenBooster = NSStatusBar.system.statusItem(withLength: Self.boosterRest)
+        hiddenBooster.autosaveName = "menubento.hidden.booster"
+        alwaysBooster = NSStatusBar.system.statusItem(withLength: Self.boosterRest)
+        alwaysBooster.autosaveName = "menubento.alwaysHidden.booster"
 
-        main.behavior = []
-        hiddenSeparator.behavior = []
-        alwaysSeparator.behavior = []
+        for item in [main, hiddenSeparator, alwaysSeparator, hiddenBooster, alwaysBooster] { item.behavior = [] }
+        hiddenBooster.button?.setAccessibilityLabel("MenuBento hidden section booster")
+        alwaysBooster.button?.setAccessibilityLabel("MenuBento always-hidden section booster")
 
         if let button = main.button {
             button.image = Self.symbol("rectangle.split.2x2", size: 14, description: "MenuBento")
@@ -61,24 +70,65 @@ final class ControlItems {
     // MARK: - State
 
     func apply(_ state: BarState) {
+        lastState = state
         switch state {
         case .hidden:
-            expand(hiddenSeparator)
             collapse(alwaysSeparator, visible: false)
+            alwaysBooster.length = Self.boosterRest
+            expand(hiddenSeparator, booster: hiddenBooster)
         case .shown:
             collapse(hiddenSeparator, visible: true)
-            expand(alwaysSeparator)
+            hiddenBooster.length = Self.boosterRest
+            expand(alwaysSeparator, booster: alwaysBooster)
         case .showAll:
             collapse(hiddenSeparator, visible: true)
             collapse(alwaysSeparator, visible: true)
+            hiddenBooster.length = Self.boosterRest
+            alwaysBooster.length = Self.boosterRest
         }
         main.button?.image = Self.symbol(state == .hidden ? "rectangle.split.2x2" : "rectangle.split.2x2.fill", size: 14, description: "MenuBento")
-        if state == .hidden { verifyHidden() }
     }
 
-    private func expand(_ item: NSStatusItem) {
-        item.button?.image = nil
-        item.length = currentExpandLength()
+    /// Grows the separator and its booster so that together they reach
+    /// past the left edge of the screen. The separator's right edge doesn't
+    /// move when it grows (it's pinned by the items to its right).
+    private func expand(_ separator: NSStatusItem, booster: NSStatusItem) {
+        separator.button?.image = nil
+        let screen = screenOfMain ?? NSScreen.main
+        let screenFrame = screen?.frame ?? NSRect(x: 0, y: 0, width: 2000, height: 1000)
+        let limit = floor(screenFrame.width / 2) - 30
+        let rightEdge = separator.button?.window?.frame.maxX ?? screenFrame.maxX
+        let needed = rightEdge - screenFrame.minX + 60
+        let first = min(limit, needed)
+        separator.length = first
+        booster.length = boostersPlaced ? max(Self.boosterRest, min(limit, needed - first)) : Self.boosterRest
+    }
+
+    /// True when each booster sits immediately left of its separator (it
+    /// may not after you or a preset rearranges the menu bar). Only
+    /// meaningful while the separators are collapsed.
+    var boostersPlaced: Bool {
+        misplacedBoosters.isEmpty
+    }
+
+    /// (booster, separator) pairs where the booster isn't right next to
+    /// its separator.
+    var misplacedBoosters: [(NSStatusItem, NSStatusItem)] {
+        [(hiddenBooster, hiddenSeparator), (alwaysBooster, alwaysSeparator)].filter { booster, separator in
+            guard let b = booster.button?.window?.frame, let s = separator.button?.window?.frame else { return false }
+            // macOS leaves a small gap between items; anything else in
+            // between would need at least ~20 pt.
+            let gap = s.minX - b.maxX
+            return gap < -1 || gap > 16
+        }
+    }
+
+    /// Makes the boosters grabbable for a drag, or puts them back to rest.
+    func setBoostersGrabbable(_ grabbable: Bool) {
+        for booster in [hiddenBooster, alwaysBooster] {
+            booster.length = grabbable ? 10 : Self.boosterRest
+        }
+        if !grabbable { apply(lastState) }
     }
 
     private func collapse(_ item: NSStatusItem, visible: Bool) {
@@ -88,35 +138,9 @@ final class ControlItems {
         item.button?.alphaValue = item === hiddenSeparator ? 0.8 : 0.5
     }
 
-    private func currentExpandLength() -> CGFloat {
-        if let expandLength { return expandLength }
-        let screen = screenOfMain ?? NSScreen.main
-        return floor((screen?.frame.width ?? 2000) / 2) - 30
-    }
-
     var screenOfMain: NSScreen? {
         guard let frame = main.button?.window?.frame else { return nil }
         return NSScreen.screens.first { $0.frame.intersects(frame) }
-    }
-
-    /// When hidden, the always-hidden separator sits left of the expanded
-    /// one, so it must have been pushed past the middle of the screen. If it
-    /// wasn't, the menu bar refused the length: try a shorter one.
-    private func verifyHidden(attempt: Int = 0) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
-            guard let self, self.hiddenSeparator.length > Self.collapsedLength,
-                  let screen = self.screenOfMain,
-                  let ahFrame = self.alwaysSeparator.button?.window?.frame else { return }
-            if ahFrame.maxX < screen.frame.midX + 4 {
-                self.expandLength = self.hiddenSeparator.length
-                return
-            }
-            guard attempt < 5 else { return }
-            let shorter = floor(self.hiddenSeparator.length * 0.85)
-            self.expandLength = shorter
-            self.hiddenSeparator.length = shorter
-            self.verifyHidden(attempt: attempt + 1)
-        }
     }
 
     // MARK: - Frames (top-left global coordinates, like Accessibility)

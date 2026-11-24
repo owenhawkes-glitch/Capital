@@ -70,6 +70,7 @@ final class AppModel: ObservableObject {
     func setState(_ new: BarState) {
         state = new
         controls.apply(new)
+        if !controls.boostersPlaced { Task { await placeBoostersIfNeeded() } }
         HoverWatcher.shared.stateChanged()
         if new != .hidden {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
@@ -214,10 +215,36 @@ final class AppModel: ObservableObject {
         try? await Task.sleep(for: .milliseconds(400))
         await refresh()
         busy = nil
+        await placeBoostersIfNeeded()
         lastMessage = failures.isEmpty
             ? (moves == 0 ? "Already in place." : "Done.")
             : "Couldn't move: \(failures.joined(separator: ", ")). macOS may not allow these to move."
         return failures.isEmpty
+    }
+
+    // MARK: - Boosters
+
+    private var placingBoosters = false
+
+    /// Puts each separator's booster immediately to its left (one ⌘-drag
+    /// each). Needed on first launch, and again whenever the separators have
+    /// been moved, or items dropped between a booster and its separator.
+    /// Without Accessibility the separators work alone, which hides less.
+    func placeBoostersIfNeeded() async {
+        guard !placingBoosters, busy == nil, AXIsProcessTrusted(), !controls.boostersPlaced else { return }
+        placingBoosters = true
+        controls.apply(.showAll)
+        controls.setBoostersGrabbable(true)
+        try? await Task.sleep(for: .milliseconds(400))
+        for _ in 0..<3 {
+            guard let (booster, separator) = controls.misplacedBoosters.first,
+                  let from = controls.frame(of: booster), let to = controls.frame(of: separator) else { break }
+            await Task.detached { _ = ItemMover.drag(from: from, to: .leftOf(to)) }.value
+            try? await Task.sleep(for: .milliseconds(300))
+        }
+        controls.setBoostersGrabbable(false)
+        controls.apply(state)
+        placingBoosters = false
     }
 
     // MARK: - Groups
